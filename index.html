@@ -18,7 +18,7 @@ h1,h2,h3{margin:0 0 8px}h3{font-size:13px;letter-spacing:.08em;margin-top:18px}s
 </style></head><body><div class="wrap">
 <header class="top"><div class="brand">Acoustic M.C Tool<small>MEASUREMENT × COMPARISON</small></div><div class="pill">TOOL · 1.0 RC1</div></header>
 <p class="note intro">Acoustic M.C Analyzerの機能縮小版。音を録る・比べる・違いを見る。判断するのは、あなたです。</p>
-<div class="privacy"><b>LOCAL PROCESSING / 端末内処理</b><span>読み込んだ音源・録音データをサーバーへ送信しません。A/Bはこのページを開いている間保持されます。再読込・ページを閉じると消去されます。</span></div>
+<div class="privacy"><b>LOCAL PROCESSING / 端末内処理</b><span>読み込んだ音源・録音データをサーバーへ送信しません。A/Bはこのページを開いている間保持されます。再読込・ページを閉じると消去されます。</span><span>メモリ負荷を減らすため端末内に作業用音声を一時保存します。強制終了時などに残った作業データは次回利用時に削除します。ブラウザによってはサイトデータの消去が必要です。</span></div>
 <nav class="tabs" aria-label="画面"><button class="tab on" data-page="compare" aria-current="page">COMPARE<small>比較</small></button><button class="tab" data-page="live">LIVE / AIR REC<small>録音・入力確認</small></button><button class="tab" data-page="history">HISTORY / MEMO<small>基準値・メモ</small></button></nav>
 <p id="status" class="status" role="status" aria-live="polite">A/Bへ音声ファイルを読み込むか、AIR RECで録音してください。</p>
 <section data-panel="compare">
@@ -52,31 +52,256 @@ function sync(a,b,rateA,rateB){const rate=100,seconds=Math.min(120,a.length/rate
 const maxLag=Math.min(3000,Math.floor(n*.45)),minOverlap=Math.max(100,Math.floor(n*.5));let best=-2,lagBest=0,scores=[];
 for(let lag=-maxLag;lag<=maxLag;lag++){const from=Math.max(0,-lag),to=Math.min(n,n-lag),m=to-from;if(m<minOverlap)continue;let x=0,y=0,xx=0,yy=0,xy=0;for(let i=from;i<to;i++){const u=A[i],v=B[i+lag];x+=u;y+=v;xx+=u*u;yy+=v*v;xy+=u*v}const vx=xx-x*x/m,vy=yy-y*y/m;const score=(vx>1e-12&&vy>1e-12)?(xy-x*y/m)/Math.sqrt(vx*vy):-2;scores.push([lag,score]);if(score>best){best=score;lagBest=lag}}
 let runner=-2;for(const [lag,s]of scores)if(Math.abs(lag-lagBest)>25)runner=Math.max(runner,s);return {offset:lagBest/rate,score:best,ambiguous:best<.65||runner>best-.035,search:Math.min(30,maxLag/rate),seconds};}
-self.onmessage=e=>{const {id,type}=e.data;try{const r=type==='analyze'?analyze(e.data.channels,e.data.sr):sync(e.data.a,e.data.b,e.data.rateA,e.data.rateB);self.postMessage({id,result:r})}catch(err){self.postMessage({id,error:err.message})}};
+// BEGIN stream-analysis
+// Included inside dspWorker. All samples contribute to waveform/envelope;
+// the same 64 globally distributed FFT windows as RC1 are retained (<= 4 MiB
+// for stereo), not 64 windows per chunk. Chunk size never changes the result.
+let stream=null;
+function beginStream(length,sr,channels) {
+  const size=8192,count=Math.min(64,Math.max(1,Math.ceil(length/size))),step=Math.max(1,Math.round(sr/100));
+  stream={length,sr,channels,size,step,next:0,
+    wave:Array.from({length:channels},()=>({min:new Float32Array(1600).fill(1),max:new Float32Array(1600).fill(-1)})),
+    energy:new Float64Array(Math.ceil(length/step)),
+    frames:Array.from({length:count},(_,f)=>({start:Math.floor(f*Math.max(0,length-size)/Math.max(1,count-1)),data:Array.from({length:channels},()=>new Float32Array(Math.min(length,size)))}))};
+}
+function feedStream(at,channels) {
+  const s=stream;if(!s||at!==s.next||channels.length!==s.channels)throw Error('解析チャンクの順序が不正です。');
+  const end=at+channels[0].length;if(end>s.length)throw Error('解析範囲が不正です。');
+  channels.forEach((data,c)=>{
+    for(let bin=0;bin<1600;bin++){
+      const first=Math.floor(bin*s.length/1600),last=Math.max(first+1,Math.floor((bin+1)*s.length/1600));
+      for(let j=Math.max(at,first);j<Math.min(end,last);j++){
+        s.wave[c].min[bin]=Math.min(s.wave[c].min[bin],data[j-at]);
+        s.wave[c].max[bin]=Math.max(s.wave[c].max[bin],data[j-at]);
+      }
+    }
+    for(let j=0;j<data.length;j++)s.energy[Math.floor((at+j)/s.step)]+=data[j]*data[j];
+    for(const f of s.frames){const first=Math.max(at,f.start),last=Math.min(end,f.start+f.data[c].length);if(last>first)f.data[c].set(data.subarray(first-at,last-at),first-f.start);}
+  });
+  s.next=end;
+}
+function finishStream() {
+  const s=stream;if(!s||s.next!==s.length)throw Error('音声解析が完了していません。');
+  const power=new Float64Array(s.size/2+1);
+  for(const f of s.frames)for(const data of f.data){
+    const re=new Float64Array(s.size),im=new Float64Array(s.size);let winSum=0;
+    for(let j=0;j<data.length;j++){const w=.5-.5*Math.cos(2*Math.PI*j/Math.max(1,data.length-1));re[j]=data[j]*w;winSum+=w;}
+    fft(re,im);
+    for(let k=0;k<power.length;k++)power[k]+=(re[k]*re[k]+im[k]*im[k])/Math.max(1,winSum*winSum)*(k&&k<s.size/2?4:1)/(s.frames.length*s.channels);
+  }
+  const env=Float32Array.from(s.energy,(v,i)=>Math.sqrt(v/(Math.min(s.step,s.length-i*s.step)*s.channels)));
+  const result={power,wave:s.wave,env,envRate:s.sr/s.step,fftSize:s.size};stream=null;return result;
+}
+
+// END stream-analysis
+self.onmessage=e=>{const {id,type}=e.data;try{let r;switch(type){case 'begin':r=beginStream(e.data.length,e.data.sr,e.data.channels);break;case 'chunk':r=feedStream(e.data.at,e.data.channels);break;case 'finish':r=finishStream();break;case 'discard':stream=null;break;case 'sync':r=sync(e.data.a,e.data.b,e.data.rateA,e.data.rateB);break;default:throw Error('不明な解析処理です。')}self.postMessage({id,result:r})}catch(err){stream=null;self.postMessage({id,error:err.message})}};
 }
 
 'use strict';
 const $=id=>document.getElementById(id), slots={A:null,B:null}, busy={A:false,B:false};let ctx=null,playing=null,sources=[],origin=0,cursor=0,offset=0,rec=null,pendingMic=false,analysisBusy=false,activePage='compare',raf=0,playToken=0,lastLive=null,reference=null;
 const colors={A:'#27dfff',B:'#ffca66'}, standard=[20,25,31.5,40,50,63,80,100,125,160,200,250,315,400,500,630,800,1000,1250,1600,2000,2500,3150,4000,5000,6300,8000,10000,12500,16000,20000], music=[20,31.5,50,80,125,250,500,1000,2000,4000,8000,16000,20000];
-const worker=new Worker(URL.createObjectURL(new Blob(['('+dspWorker.toString()+')()'],{type:'text/javascript'}))),jobs=new Map();let jobId=0;
-worker.onmessage=e=>{const j=jobs.get(e.data.id);if(!j)return;jobs.delete(e.data.id);e.data.error?j.reject(Error(e.data.error)):j.resolve(e.data.result)};worker.onerror=()=>{for(const j of jobs.values())j.reject(Error('音声解析を継続できません。ページを再度開いてください。'));jobs.clear();say('音声解析でエラーが発生しました。')};
-function job(type,data){return new Promise((resolve,reject)=>{const id=++jobId;jobs.set(id,{resolve,reject});worker.postMessage({id,type,...data})})}
+const workerURL=URL.createObjectURL(new Blob(['('+dspWorker.toString()+')()'],{type:'text/javascript'})),worker=new Worker(workerURL),jobs=new Map();URL.revokeObjectURL(workerURL);let jobId=0,workerFailed=false;
+worker.onmessage=e=>{const j=jobs.get(e.data.id);if(!j)return;jobs.delete(e.data.id);e.data.error?j.reject(Error(e.data.error)):j.resolve(e.data.result)};worker.onerror=()=>failWorker();
+function failWorker(){workerFailed=true;worker.terminate();for(const j of jobs.values())j.reject(Error('音声解析を継続できません。ページを再度開いてください。'));jobs.clear();say('音声解析でエラーが発生しました。')}
+function job(type,data,transfer=[]){return new Promise((resolve,reject)=>{if(workerFailed){reject(Error('解析Workerが停止しています。ページを再度開いてください。'));return}const id=++jobId,timer=setTimeout(failWorker,90000);jobs.set(id,{resolve:v=>{clearTimeout(timer);resolve(v)},reject:e=>{clearTimeout(timer);reject(e)}});try{worker.postMessage({id,type,...data},transfer)}catch(error){clearTimeout(timer);jobs.delete(id);reject(error)}})}
+// BEGIN memory-audio
+// Embedded into the standalone HTML by tools/build.mjs. No network dependencies.
+// Decoding is serialized. Only one complete decoded source is transiently held;
+// committed slots contain metadata and a temporary IndexedDB asset, never PCM.
+class PCMStore {
+  constructor() { this.db = null; this.cache = new Map(); this.serial = 0; }
+  async open() {
+    if (this.db) return;
+    if (!window.indexedDB) throw Error('端末内の一時保存が使用できません。');
+    this.name = 'amct-pcm-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+    // Locks distinguish live tabs from abandoned temporary databases, including
+    // duplicated tabs. Never delete another tab's active assets.
+    if (navigator.locks) {
+      await new Promise(resolve => {
+        navigator.locks.request(this.name, () => new Promise(release => {
+          this.releaseLock = release; resolve();
+        }));
+      });
+      if (indexedDB.databases) {
+        for (const {name} of await indexedDB.databases()) {
+          if (name?.startsWith('amct-pcm-') && name !== this.name) {
+            await navigator.locks.request(name, {ifAvailable:true}, lock => {
+              if (lock) indexedDB.deleteDatabase(name);
+            });
+          }
+        }
+      }
+    }
+    this.db = await new Promise((resolve,reject) => {
+      const request = indexedDB.open(this.name, 1);
+      request.onupgradeneeded = () => request.result.createObjectStore('pcm');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    this.db.onversionchange = () => this.db.close();
+  }
+  transaction(mode, action) {
+    return new Promise((resolve,reject) => {
+      const tx = this.db.transaction('pcm', mode);
+      const request = action(tx.objectStore('pcm'));
+      tx.oncomplete = () => resolve(request?.result);
+      tx.onabort = tx.onerror = () => reject(tx.error || Error('一時保存に失敗しました。空き容量を確認してください。'));
+    });
+  }
+  put(id, index, channels) { return this.transaction('readwrite', s => s.put(channels, [id,index])); }
+  async remove(id) {
+    for (const key of this.cache.keys()) if (key.startsWith(id+':')) this.cache.delete(key);
+    if (this.db) await this.transaction('readwrite', s => s.delete(IDBKeyRange.bound([id,0],[id,Number.MAX_SAFE_INTEGER])));
+  }
+  async read(asset, index, context) {
+    const key = asset.id+':'+index;
+    if (this.cache.has(key)) { const b=this.cache.get(key); this.cache.delete(key); this.cache.set(key,b); return b; }
+    const channels = await this.transaction('readonly', s => s.get([asset.id,index]));
+    if (!channels?.length) throw Error('一時音声データを読み出せません。ファイルを再読み込みしてください。');
+    const b = context.createBuffer(channels.length, channels[0].length, asset.sampleRate);
+    channels.forEach((data,c) => b.copyToChannel(data,c));
+    this.cache.set(key,b);
+    // At most eight two-second chunks, independent of recording duration.
+    while (this.cache.size > 8) this.cache.delete(this.cache.keys().next().value);
+    return b;
+  }
+  close() {
+    this.cache.clear(); this.db?.close(); this.db=null;
+    if (this.name) indexedDB.deleteDatabase(this.name);
+    this.releaseLock?.();
+  }
+}
+const pcmStore = new PCMStore();
+let loadQueue = Promise.resolve(), decodePending = false;
+async function equalBlobs(a,b) {
+  if (a === b) return true;
+  if (a.size !== b.size) return false;
+  // Names, modification dates and a partial fingerprint are NOT identity.
+  for (let at=0;at<a.size;at+=1024*1024) {
+    const [x,y] = await Promise.all([a.slice(at,at+1024*1024).arrayBuffer(),b.slice(at,at+1024*1024).arrayBuffer()]);
+    const u=new Uint8Array(x),v=new Uint8Array(y);
+    for(let i=0;i<u.length;i++) if(u[i]!==v[i]) return false;
+  }
+  return true;
+}
+async function releaseSlot(s) {
+  if (s?.url) URL.revokeObjectURL(s.url);
+  if (s && !Object.values(slots).some(other => other?.asset === s.asset)) await pcmStore.remove(s.asset.id);
+}
+async function prepareAsset(blob) {
+  await pcmStore.open();
+  pcmStore.cache.clear();
+  const id=++pcmStore.serial;
+  let buffer=null,bytes=null;
+  try {
+    bytes=await blob.arrayBuffer();
+    // A timeout cannot cancel decodeAudioData. Keep the serialization lock until
+    // the native decoder actually settles; otherwise a retry overlaps decoders.
+    decodePending=true;
+    const decodeNotice=setTimeout(()=>say('音声のデコードに時間がかかっています。重複処理を防ぐため完了を待っています。'),45000);
+    try { buffer=await new (window.OfflineAudioContext||window.webkitOfflineAudioContext)(1,1,ctx.sampleRate).decodeAudioData(bytes); }
+    finally { clearTimeout(decodeNotice); decodePending=false; bytes=null; }
+    if(!buffer.length || buffer.duration<=0) throw Error('音声が空です。');
+    const asset={id,length:buffer.length,duration:buffer.duration,sampleRate:buffer.sampleRate,numberOfChannels:buffer.numberOfChannels,chunkFrames:Math.round(buffer.sampleRate*2)};
+    await job('begin',{length:asset.length,sr:asset.sampleRate,channels:asset.numberOfChannels});
+    for(let at=0,index=0;at<asset.length;at+=asset.chunkFrames,index++) {
+      const size=Math.min(asset.chunkFrames,asset.length-at);
+      const channels=Array.from({length:asset.numberOfChannels},(_,c)=>{
+        const data=new Float32Array(size); buffer.copyFromChannel(data,c,at); return data;
+      });
+      // Wait for IDB to commit before transferring ownership to the worker.
+      await pcmStore.put(id,index,channels);
+      await job('chunk',{at,channels},channels.map(c=>c.buffer));
+      say('音声を解析・一時保存しています… '+Math.round((at+size)/asset.length*100)+'%');
+    }
+    buffer=null;
+    const analysis=await job('finish',{});
+    return {asset,buffer:{length:asset.length,duration:asset.duration,sampleRate:asset.sampleRate,numberOfChannels:asset.numberOfChannels},...analysis};
+  } catch(error) {
+    await job('discard',{}).catch(()=>{});
+    await pcmStore.remove(id).catch(()=>{});
+    throw error;
+  } finally { bytes=null; buffer=null; }
+}
+
+// Web Audio's clock, not HTMLMediaElement.currentTime, remains the common time
+// base. Chunk boundaries are scheduled at exact sample positions on that clock.
+let transport=null, pumping=false;
+function stopTransport() { transport=null; }
+function scheduleChunk(t,buffer,index,from) {
+  const sr=t.asset.sampleRate,chunkStart=index*t.asset.chunkFrames/sr;
+  const begin=Math.max(from,chunkStart),end=Math.min(chunkStart+buffer.duration,t.end);
+  if(end<=begin) return;
+  const when=t.origin+begin-t.shift;
+  const node=ctx.createBufferSource();node.buffer=buffer;node.connect(t.gain);
+  const entry={node,gain:t.gain};sources.push(entry);
+  node.onended=()=>{node.disconnect();node.buffer=null;sources=sources.filter(s=>s!==entry)};
+  node.start(when,begin-chunkStart,end-begin);
+}
+async function pumpTransport() {
+  const t=transport;if(!t||pumping)return;pumping=true;
+  try {
+    const step=t.asset.chunkFrames/t.asset.sampleRate;
+    while(transport===t && t.next*step<t.end && t.origin+t.next*step-t.shift<ctx.currentTime+4) {
+      const index=t.next,b=await pcmStore.read(t.asset,index,ctx);
+      if(transport!==t)return;
+      if(t.origin+index*step-t.shift<ctx.currentTime+.005) throw Error('音声の読出しが再生に追いつきませんでした。再生ボタンで再開してください。');
+      scheduleChunk(t,b,index,index*step);t.next++;
+    }
+  } catch(error) { if(transport===t){pause();say(error.message)} }
+  finally { pumping=false; }
+}
+setInterval(pumpTransport,100);
+async function playStored(which) {
+  const token=++playToken;
+  try {
+    if(rec||pendingMic||busy.A||busy.B||analysisBusy||!slots[which])return;
+    await audio();if(token!==playToken)return;
+    const asset=slots[which].asset,shift=which==='B'?offset:0,step=asset.chunkFrames/asset.sampleRate;
+    const [lo,hi]=limits();if(hi<=lo)throw Error('同期後の共通区間がありません。位置を調整してください。');
+    let p=position();if(p<lo||p>=hi-.002)p=lo;
+    // Prime first/next chunks while the current side keeps playing. Re-evaluate
+    // after the asynchronous read so a switch never rewinds by the IO latency.
+    for (;;) {
+      const index=Math.floor((p+shift)/step);
+      const first=await pcmStore.read(asset,index,ctx);
+      if(token!==playToken)return;
+      const next=(index+1)*step<Math.min(asset.duration,hi+shift)?await pcmStore.read(asset,index+1,ctx):null;
+      if(token!==playToken)return;
+      let target=playing?position()+.06:p;if(target>=hi-.002)target=lo;
+      if(Math.floor((target+shift)/step)!==index){p=target;continue;}
+      const start=ctx.currentTime+.06,gain=ctx.createGain();gain.connect(ctx.destination);
+      gain.gain.setValueAtTime(0,start);gain.gain.linearRampToValueAtTime(1,start+.008);
+      const old=sources,oldGain=transport?.gain; sources=[];stopTransport();
+      for(const s of old){s.gain.gain.cancelScheduledValues(ctx.currentTime);s.gain.gain.setValueAtTime(s.gain.gain.value,ctx.currentTime);s.gain.gain.linearRampToValueAtTime(0,start);try{s.node.stop(start)}catch{}}
+      setTimeout(()=>{for(const s of old){s.node.disconnect();s.node.buffer=null;s.gain.disconnect()}oldGain?.disconnect()},150);
+      origin=start-target;cursor=target;playing=which;
+      transport={asset,shift,origin,gain,end:hi+shift,next:index+1};
+      scheduleChunk(transport,first,index,target+shift);
+      if(next){scheduleChunk(transport,next,index+1,(index+1)*step);transport.next++;}
+      update();draw();void pumpTransport();return;
+    }
+  } catch(error) {if(token===playToken){say('再生できません：'+error.message);pause()}}
+}
+
+// END memory-audio
 function say(s){$('status').textContent=s}
 function timed(p,ms,label){let timer;return Promise.race([p,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error(label)),ms)})]).finally(()=>clearTimeout(timer))}
 async function audio(resume=true){if(!ctx)ctx=new(window.AudioContext||window.webkitAudioContext)();if(resume&&ctx.state==='suspended')await timed(ctx.resume(),6000,'音声出力の開始がタイムアウトしました。再生ボタンをもう一度押してください。');if(resume&&ctx.state!=='running')throw Error('音声出力を開始できません。もう一度再生ボタンを押してください。');return ctx}
 function time(t){t=Math.max(0,t);const m=Math.floor(t/60),s=(t%60).toFixed(3).padStart(6,'0');return String(m).padStart(2,'0')+':'+s}
 function limits(){if(slots.A&&slots.B)return [Math.max(0,-offset),Math.min(slots.A.buffer.duration,slots.B.buffer.duration-offset)];return [0,slots.A?slots.A.buffer.duration:slots.B?slots.B.buffer.duration:0]}
 function position(){return playing?ctx.currentTime-origin:cursor}
-function cut(){for(const s of sources){try{s.node.stop()}catch{}s.node.disconnect();s.gain.disconnect()}sources=[]}
+function cut(){const gain=transport?.gain;stopTransport();for(const s of sources){try{s.node.stop()}catch{}s.node.disconnect();s.node.buffer=null;s.gain.disconnect()}gain?.disconnect();sources=[]}
 function pause(reset=false){playToken++;cursor=reset?limits()[0]:position();playing=null;cut();update();draw()}
-async function play(which){const token=++playToken;try{if(rec||pendingMic||busy.A||busy.B||analysisBusy||!slots[which])return;await audio();if(token!==playToken)return;let p=position()+(playing?.015:0),[lo,hi]=limits();if(hi<=lo)throw Error('同期後の共通区間がありません。位置を調整してください。');if(p<lo||p>=hi-.002)p=lo;const start=ctx.currentTime+.015;for(const s of sources){s.gain.gain.cancelScheduledValues(ctx.currentTime);s.gain.gain.setValueAtTime(s.gain.gain.value,ctx.currentTime);s.gain.gain.linearRampToValueAtTime(0,start);try{s.node.stop(start)}catch{}setTimeout(()=>{s.node.disconnect();s.gain.disconnect()},60)}sources=[];const node=ctx.createBufferSource(),gain=ctx.createGain();node.buffer=slots[which].buffer;node.connect(gain);gain.connect(ctx.destination);gain.gain.setValueAtTime(0,start);gain.gain.linearRampToValueAtTime(1,start+.008);node.start(start,p+(which==='B'?offset:0),hi-p);sources.push({node,gain});origin=start-p;cursor=p;playing=which;update();draw()}catch(e){say('再生できません：'+e.message);pause()}}
+async function play(which){return playStored(which)}
 function update(){const locked=!!rec||pendingMic||busy.A||busy.B||analysisBusy,both=!!slots.A&&!!slots.B;for(const k of ['A','B']){$('play'+k).disabled=locked||!slots[k];$('play'+k).classList.toggle('active',playing===k);$('slot'+k).classList.toggle('playing',playing===k);document.querySelector('.legend'+k).classList.toggle('active',playing===k);$('file'+k).disabled=locked;$('air'+k).disabled=locked;$('clear'+k).disabled=locked||!slots[k];$('download'+k).disabled=locked||!slots[k];$('meta'+k).textContent=busy[k]?'読み込み・解析中…':slots[k]?`${time(slots[k].buffer.duration)} · ${slots[k].buffer.sampleRate} Hz · ${slots[k].buffer.numberOfChannels} ch`:'未読込';$('name'+k).textContent=slots[k]?slots[k].name:'FILE / AIR REC'}
 $('sync').disabled=locked||!both;$('resetSync').disabled=locked||!both;$('offset').disabled=locked||!both;document.querySelectorAll('.nudge').forEach(b=>b.disabled=locked||!both);$('record').disabled=locked;$('recSlot').disabled=locked;$('stopRecord').disabled=!rec||rec.stopping;$('pause').disabled=!playing;$('stop').disabled=!slots.A&&!slots.B;const [lo,hi]=limits();$('seek').min=lo;$('seek').max=Math.max(lo,hi);$('seek').disabled=locked||hi<=lo;$('seek').value=Math.max(lo,Math.min(hi,position()));$('now').textContent=playing?`PLAYING ${playing} / ${playing}を再生中`:'STOPPED / 停止中';$('position').textContent=time(position())}
 function changePage(p){activePage=p;document.querySelectorAll('[data-panel]').forEach(el=>el.hidden=el.dataset.panel!==p);document.querySelectorAll('[data-page]').forEach(el=>{el.classList.toggle('on',el.dataset.page===p);if(el.dataset.page===p)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current')});draw()}
 function resetAlignment(){offset=0;$('offset').value=0;cursor=0;$('syncStatus').textContent='音声を変更したため同期をリセットしました。AUTO / MANUALで確認してください。'}
-async function loadBlob(k,blob,name){busy[k]=true;pause(true);update();say(k+'の音声を読み込み・解析しています…');try{await audio(false);const bytes=await timed(blob.arrayBuffer(),30000,'ファイルの読込がタイムアウトしました。');const buffer=await timed(new (window.OfflineAudioContext||window.webkitOfflineAudioContext)(1,1,ctx.sampleRate).decodeAudioData(bytes),45000,'音声のデコードがタイムアウトしました。対応形式とブラウザを確認してください。');if(!buffer.length||buffer.duration<=0)throw Error('音声が空です。');const channels=Array.from({length:buffer.numberOfChannels},(_,i)=>buffer.getChannelData(i));const analysis=await timed(job('analyze',{channels,sr:buffer.sampleRate}),90000,'音声の解析がタイムアウトしました。短いファイルで再試行してください。');const old=slots[k];slots[k]={buffer,...analysis,name,blob};if(old?.url)URL.revokeObjectURL(old.url);resetAlignment();say(k+'の読み込み完了。再生して比較できます。')}catch(e){say(k+'の読み込みに失敗しました。以前の音声は保持しています。形式・ファイルサイズを確認してください。 '+e.message)}finally{busy[k]=false;update();draw()}}
+function loadBlob(k,blob,name){const task=loadQueue.then(()=>loadOne(k,blob,name));loadQueue=task.catch(()=>{});return task}
+async function loadOne(k,blob,name){busy[k]=true;pause(true);update();say(k+'の音声を読み込み・解析しています…');try{await audio(false);let prepared=null;for(const s of Object.values(slots)){if(s&&await equalBlobs(s.blob,blob)){prepared=s;break}}if(!prepared)prepared=await prepareAsset(blob);const old=slots[k];slots[k]={asset:prepared.asset,buffer:prepared.buffer,power:prepared.power,wave:prepared.wave,env:prepared.env,envRate:prepared.envRate,fftSize:prepared.fftSize,name,blob};resetAlignment();await releaseSlot(old).catch(()=>{});say(k+'の読み込み完了。再生して比較できます。')}catch(e){say(k+'の読み込みに失敗しました。以前の音声は保持しています。形式・空き容量を確認してください。 '+e.message)}finally{busy[k]=false;update();draw()}}
 $('slots').innerHTML=['A','B'].map(k=>`<div id="slot${k}" class="drop slot${k}"><b>${k}</b><label for="file${k}">FILE / 音声ファイル</label><input id="file${k}" type="file" accept="audio/*,video/*"><p class="filename" id="name${k}"></p><div class="slotMeta" id="meta${k}"></div><div class="slotActions"><button class="alt" id="air${k}">AIR REC → ${k}</button><button class="alt" id="download${k}" disabled>SAVE AUDIO</button><button class="alt" id="clear${k}" disabled>CLEAR</button></div></div>`).join('');
-for(const k of ['A','B']){$('file'+k).onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;if(slots[k]&&!confirm(k+'の音声を置き換えますか？'))return;await loadBlob(k,f,f.name)};$('play'+k).onclick=()=>play(k);$('air'+k).onclick=()=>{$('recSlot').value=k;changePage('live')};$('clear'+k).onclick=()=>{if(!confirm(k+'の音声を消去しますか？'))return;pause(true);if(slots[k]?.url)URL.revokeObjectURL(slots[k].url);slots[k]=null;resetAlignment();update();draw();say(k+'を消去しました。')};$('download'+k).onclick=()=>{const s=slots[k];if(!s)return;if(!s.url)s.url=URL.createObjectURL(s.blob);const a=document.createElement('a');a.href=s.url;a.download=s.name;document.body.append(a);a.click();a.remove()}}
+for(const k of ['A','B']){$('file'+k).onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;if(slots[k]&&!confirm(k+'の音声を置き換えますか？'))return;await loadBlob(k,f,f.name)};$('play'+k).onclick=()=>play(k);$('air'+k).onclick=()=>{$('recSlot').value=k;changePage('live')};$('clear'+k).onclick=async()=>{if(!confirm(k+'の音声を消去しますか？'))return;pause(true);const old=slots[k];slots[k]=null;resetAlignment();update();draw();await releaseSlot(old).catch(()=>{});say(k+'を消去しました。')};$('download'+k).onclick=()=>{const s=slots[k];if(!s)return;if(!s.url)s.url=URL.createObjectURL(s.blob);const a=document.createElement('a');a.href=s.url;a.download=s.name;document.body.append(a);a.click();a.remove()}}
 document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>changePage(b.dataset.page));$('pause').onclick=()=>pause();$('stop').onclick=()=>pause(true);$('seek').oninput=()=>{const k=playing,target=Number($('seek').value);pause();cursor=target;update();draw();if(k)play(k)};
 function setOffset(v){if(!Number.isFinite(v)){say('同期位置には数値を入力してください。');$('offset').value=(offset*1000).toFixed(1);return}const sec=v/1000;if(slots.A&&slots.B&&(sec>=slots.B.buffer.duration||sec<=-slots.A.buffer.duration)){say('共通再生区間がなくなるため、その同期位置は適用できません。');$('offset').value=(offset*1000).toFixed(1);return}pause();offset=sec;cursor=Math.max(limits()[0],Math.min(cursor,limits()[1]));$('offset').value=v.toFixed(1);$('syncStatus').textContent='MANUAL / 手動設定 '+v.toFixed(1)+' ms。耳と波形で確認してください。';update();draw()}
 $('offset').onchange=()=>setOffset($('offset').value.trim()===''?NaN:Number($('offset').value));document.querySelectorAll('.nudge').forEach(b=>b.onclick=()=>setOffset(offset*1000+Number(b.dataset.step)));$('resetSync').onclick=()=>setOffset(0);
@@ -95,5 +320,5 @@ function waveGraph(){const {g,w,h,l,r,t,b}=base('wave','A/B · amplitude / 同�
 function referenceBands(){const fs=[63,125,250,500,1000,2000,4000,8000,12000];function lookup(freqs,values,f){if(!values)return null;let j=freqs.findIndex(x=>x>=f);if(j<0)return values[values.length-1];if(j===0||freqs[j]===f)return values[j];const t=Math.log(f/freqs[j-1])/Math.log(freqs[j]/freqs[j-1]);return values[j-1]*(1-t)+values[j]*t}const el=$('bands');el.replaceChildren();for(const f of fs){const v=lookup(standard,lastLive,f),old=reference?lookup(reference.freqs||standard,reference.values,f):null;const item=document.createElement('div');item.className='band';const name=document.createElement('b');name.textContent=(f>=1000?f/1000+'k':f)+' Hz';const current=document.createElement('div');current.className='n';current.textContent=v===null?'-- dBFS':v.toFixed(1)+' dBFS';const delta=document.createElement('div');delta.className='delta';delta.textContent=v===null||old===null?'Δ -- dB':'Δ '+(v-old>=0?'+':'')+(v-old).toFixed(1)+' dB';item.append(name,current,delta);el.append(item)}}
 function draw(){referenceBands();waveGraph();const fs=$('freqMode').value==='music'?music:standard;freqGraph('spectrum',['A','B'].filter(k=>slots[k]).map(k=>({key:k,color:colors[k],freqs:fs,values:fs.map(f=>band(slots[k].power,slots[k].buffer.sampleRate,slots[k].fftSize,f))})),'dBFS ref · averaged spectrum');const old=reference?{color:'#a58bff',freqs:reference.freqs||standard,values:reference.values}:null;freqGraph('referenceChart',old?[old]:[],'REFERENCE / 保存スペクトル');$('referenceStatus').textContent=reference?'保存日時：'+reference.date:'保存された基準値はありません。';if(!rec)freqGraph('liveChart',old?[old]:[],'LIVE / 現在の入力・紫：保存基準')}
 let lastFrame=0;function tick(now){raf=requestAnimationFrame(tick);if(now-lastFrame<70)return;lastFrame=now;if(playing){if(position()>=limits()[1]){pause(true)}else{$('seek').value=position();$('position').textContent=time(position());if(activePage==='compare')waveGraph()}}if(rec&&!rec.stopping){const a=rec.analyser,data=new Float32Array(a.frequencyBinCount),wave=new Float32Array(a.fftSize);a.getFloatFrequencyData(data);a.getFloatTimeDomainData(wave);let sum=0;for(const v of wave)sum+=v*v;const db=20*Math.log10(Math.max(1e-8,Math.sqrt(sum/wave.length)));$('db').textContent=db.toFixed(1);$('level').style.width=Math.max(0,Math.min(100,(db+60)/60*100))+'%';const p=Float64Array.from(data,v=>Number.isFinite(v)?Math.pow(10,v/10):0);lastLive=standard.map(f=>band(p,ctx.sampleRate,a.fftSize,f)??-120);$('saveReference').disabled=false;if(activePage==='live')referenceBands();if(activePage==='live'){const s=[{color:colors.A,freqs:standard,values:lastLive}];if(reference)s.unshift({color:'#a58bff',freqs:reference.freqs||standard,values:reference.values});freqGraph('liveChart',s,'LIVE '+time((performance.now()-rec.started)/1000)+' · dBFS ref')}}}
-document.addEventListener('visibilitychange',()=>{if(document.hidden){if(playing){pause();say('ページが非表示になったため再生を一時停止しました。')}if(rec)stopRecord('ページが非表示になったため録音を終了')}});window.addEventListener('pagehide',()=>{if(rec)cleanMic(rec);cut()});window.addEventListener('resize',draw);update();draw();raf=requestAnimationFrame(tick);
+document.addEventListener('visibilitychange',()=>{if(document.hidden){if(playing){pause();say('ページが非表示になったため再生を一時停止しました。')}if(rec)stopRecord('ページが非表示になったため録音を終了')}});window.addEventListener('pagehide',e=>{if(rec)cleanMic(rec);cut();if(!e.persisted)pcmStore.close()});window.addEventListener('resize',draw);update();draw();raf=requestAnimationFrame(tick);
 </script></body></html>
