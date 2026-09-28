@@ -35,6 +35,7 @@ Requires Node.js, no npm packages:
 ```sh
 node tools/build.mjs
 node tests/regression.mjs
+node tests/audio-context.mjs
 node tests/server.mjs
 ```
 
@@ -47,7 +48,7 @@ ffmpeg -f lavfi -i 'color=c=black:s=16x16:r=1:d=780' -f lavfi -i 'aevalsrc=0.15*
 ffmpeg -i ../fixtures/13min.mp4 -map 0 -c copy -metadata title='independent source fixture' ../fixtures/13min-distinct.mp4
 ```
 
-The standalone HTML embeds `memory-audio.js` and `stream-analysis.js`; edit these sources, then run `node tools/build.mjs`. No runtime external script is required.
+The standalone HTML embeds `memory-audio.js`, `stream-analysis.js` and `audio-context.js`; edit these sources, then run `node tools/build.mjs`. No runtime external script is required.
 
 ## Required iPhone acceptance test (not performed here)
 
@@ -62,3 +63,19 @@ Record iPhone model, iOS/Safari version, source size/codec/duration, free storag
 5. Test decode failure, low storage/private mode, rapid switching/seek/STOP while reads are pending, reload/close, and two tabs. Confirm no wrong slot replacement, stale playback, loss of the other slot, or restoration of expired audio.
 
 Do not mark this as iPhone-verified until those device tests pass.
+
+## Follow-up: foreground AudioContext recovery
+
+The previous `audio()` resumed only `suspended` and immediately rejected any non-`running` state. iOS Safari can report `interrupted`, settle the resume promise before its state transition, or leave resume pending. WebKit reports also describe `running` with a non-advancing clock. References: https://developer.mozilla.org/en-US/docs/Web/API/BaseAudioContext/state , https://bugs.webkit.org/show_bug.cgi?id=281566 and https://bugs.webkit.org/show_bug.cgi?id=263627 .
+
+The output lifecycle now resumes non-closed contexts on an explicit PLAY/REC attempt, observes `statechange` and the audio clock, and bounds each recovery wait at 2.5 seconds. Rejection, closed output or an unresponsive context leads to one replacement per attempt; `close()` is requested on the old context without waiting indefinitely for it. Duplicate requests share one recovery. A failed fresh context can be resumed on the next explicit tap (Safari may consume transient activation during an asynchronous recovery). There is no unbounded retry or automatic foreground playback.
+
+Only output nodes/clock and the bounded playback cache are retired. The old-clock cursor is saved first; A/B asset IDs, PCM database, original blobs, waveform/spectrum/envelopes, offset, memo and reference remain intact. Sources fading out during A/B switching are also disconnected when pausing/rebuilding. Active AIR REC contexts are never replaced during a recording. Background/pagehide cancels pending resumes and pending PLAY requests even before playback starts. BFCache returns stay paused; normal page unload keeps the existing storage cleanup behavior. File loading (`audio(false)`) never resumes output.
+
+Run `node tests/audio-context.mjs` for 16 deterministic cases: suspended/interrupted delayed statechange; rejected/thrown/pending/settled-but-stuck resume; frozen running clock; closed context; concurrent taps; failed replacement then successful next tap; background/STOP cancellation; no auto-resume; file decode isolation; active recording protection. Deadline timers are accelerated in these unit tests only.
+
+In the native browser harness, run the existing native and 13-minute MP4 suites, then RUN OUTPUT RECOVERY TESTS. This keeps both long assets loaded and simulates visibility/page lifecycle transitions. It uses actual `suspend()`, actual replacement contexts and actual IndexedDB playback; only the unresponsive Safari state is injected on the retired context. Checks cover suspended resume, replacement, closed output, cursor/offset/asset/analysis/memo/reference preservation, context ownership of new nodes, bounded cache and BFCache pause/replay. Simulation does not reproduce iPhone audio-session permissions or prove physical speaker output on iOS.
+
+Additional device acceptance: load both original 13-minute MP4s, play and set a nonzero offset, switch tabs/apps or lock the screen, return, verify silence until PLAY, then test A and B without reloading the files. Repeat five times, including immediate backgrounding during A/B crossfade and during recovery. Check manual/AUTO sync, recorder start/stop after recovery, SAVE AUDIO and memo/reference. If Safari still prevents the newly created context from starting in the delayed attempt, the error requests a fresh explicit tap; no source data is discarded.
+
+Follow-up execution (2026-09-27, Windows in-app browser): the existing 9 Node regression groups, 26 native browser checks and 7 long-MP4 checks were rerun and passed. The new 16 deterministic output scenarios and 12 native recovery checks passed; the latter ran with both independent 13-minute assets loaded. The 26 native checks were also rerun after context replacement to exercise recording and storage on the new context. No iPhone device was connected; device verification of this follow-up remains outstanding.

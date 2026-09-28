@@ -119,7 +119,7 @@ async function prepareAsset(blob) {
 
 // Web Audio's clock, not HTMLMediaElement.currentTime, remains the common time
 // base. Chunk boundaries are scheduled at exact sample positions on that clock.
-let transport=null, pumping=false;
+let transport=null, pumping=false;const fadingSources=new Set();
 function stopTransport() { transport=null; }
 function scheduleChunk(t,buffer,index,from) {
   const sr=t.asset.sampleRate,chunkStart=index*t.asset.chunkFrames/sr;
@@ -166,8 +166,8 @@ async function playStored(which) {
       const start=ctx.currentTime+.06,gain=ctx.createGain();gain.connect(ctx.destination);
       gain.gain.setValueAtTime(0,start);gain.gain.linearRampToValueAtTime(1,start+.008);
       const old=sources,oldGain=transport?.gain; sources=[];stopTransport();
-      for(const s of old){s.gain.gain.cancelScheduledValues(ctx.currentTime);s.gain.gain.setValueAtTime(s.gain.gain.value,ctx.currentTime);s.gain.gain.linearRampToValueAtTime(0,start);try{s.node.stop(start)}catch{}}
-      setTimeout(()=>{for(const s of old){s.node.disconnect();s.node.buffer=null;s.gain.disconnect()}oldGain?.disconnect()},150);
+      for(const s of old){fadingSources.add(s);s.gain.gain.cancelScheduledValues(ctx.currentTime);s.gain.gain.setValueAtTime(s.gain.gain.value,ctx.currentTime);s.gain.gain.linearRampToValueAtTime(0,start);try{s.node.stop(start)}catch{}}
+      setTimeout(()=>{for(const s of old){s.node.disconnect();s.node.buffer=null;s.gain.disconnect();fadingSources.delete(s)}oldGain?.disconnect()},150);
       origin=start-target;cursor=target;playing=which;
       transport={asset,shift,origin,gain,end:hi+shift,next:index+1};
       scheduleChunk(transport,first,index,target+shift);

@@ -226,7 +226,7 @@ async function prepareAsset(blob) {
 
 // Web Audio's clock, not HTMLMediaElement.currentTime, remains the common time
 // base. Chunk boundaries are scheduled at exact sample positions on that clock.
-let transport=null, pumping=false;
+let transport=null, pumping=false;const fadingSources=new Set();
 function stopTransport() { transport=null; }
 function scheduleChunk(t,buffer,index,from) {
   const sr=t.asset.sampleRate,chunkStart=index*t.asset.chunkFrames/sr;
@@ -273,8 +273,8 @@ async function playStored(which) {
       const start=ctx.currentTime+.06,gain=ctx.createGain();gain.connect(ctx.destination);
       gain.gain.setValueAtTime(0,start);gain.gain.linearRampToValueAtTime(1,start+.008);
       const old=sources,oldGain=transport?.gain; sources=[];stopTransport();
-      for(const s of old){s.gain.gain.cancelScheduledValues(ctx.currentTime);s.gain.gain.setValueAtTime(s.gain.gain.value,ctx.currentTime);s.gain.gain.linearRampToValueAtTime(0,start);try{s.node.stop(start)}catch{}}
-      setTimeout(()=>{for(const s of old){s.node.disconnect();s.node.buffer=null;s.gain.disconnect()}oldGain?.disconnect()},150);
+      for(const s of old){fadingSources.add(s);s.gain.gain.cancelScheduledValues(ctx.currentTime);s.gain.gain.setValueAtTime(s.gain.gain.value,ctx.currentTime);s.gain.gain.linearRampToValueAtTime(0,start);try{s.node.stop(start)}catch{}}
+      setTimeout(()=>{for(const s of old){s.node.disconnect();s.node.buffer=null;s.gain.disconnect();fadingSources.delete(s)}oldGain?.disconnect()},150);
       origin=start-target;cursor=target;playing=which;
       transport={asset,shift,origin,gain,end:hi+shift,next:index+1};
       scheduleChunk(transport,first,index,target+shift);
@@ -287,12 +287,94 @@ async function playStored(which) {
 // END memory-audio
 function say(s){$('status').textContent=s}
 function timed(p,ms,label){let timer;return Promise.race([p,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error(label)),ms)})]).finally(()=>clearTimeout(timer))}
-async function audio(resume=true){if(!ctx)ctx=new(window.AudioContext||window.webkitAudioContext)();if(resume&&ctx.state==='suspended')await timed(ctx.resume(),6000,'音声出力の開始がタイムアウトしました。再生ボタンをもう一度押してください。');if(resume&&ctx.state!=='running')throw Error('音声出力を開始できません。もう一度再生ボタンを押してください。');return ctx}
+// BEGIN audio-context
+// Output lifecycle only: assets, PCM store, analysis and alignment outlive ctx.
+let audioFlight=null, audioEpoch=0, outputNeedsCheck=false;
+function cancelAudioStart() {
+  audioEpoch++;
+  const pending=audioFlight;audioFlight=null;
+  pending?.cancel?.();
+}
+function waitForOutput(context,flight,verifyClock) {
+  return new Promise((resolve,reject)=>{
+    let done=false;
+    const initialTime=context.currentTime;
+    const finish=error=>{
+      if(done)return;done=true;
+      clearTimeout(deadline);clearInterval(poll);
+      context.removeEventListener('statechange',check);
+      if(flight.cancel===cancel)flight.cancel=null;
+      error?reject(error):resolve(context);
+    };
+    const check=()=>{
+      if(flight.epoch!==audioEpoch||document.hidden)return finish(Error('音声出力の開始を中止しました。'));
+      if(context.state==='closed')return finish(Error('音声出力が閉じられています。'));
+      if(context.state==='running'&&(!verifyClock||context.currentTime>initialTime))finish();
+    };
+    const cancel=()=>finish(Error('音声出力の開始を中止しました。'));
+    const deadline=setTimeout(()=>finish(Error('音声出力の復帰がタイムアウトしました。')),2500);
+    const poll=setInterval(check,25);
+    flight.cancel=cancel;context.addEventListener('statechange',check);
+    // Call synchronously in the PLAY/REC gesture, for suspended *and* interrupted.
+    // The promise may settle before statechange, or may never settle in Safari.
+    try { Promise.resolve(context.resume()).then(check,error=>finish(error)); }
+    catch(error) { finish(error); }
+    check();
+  });
+}
+function discardOutput(context) {
+  if(rec)throw Error('録音中の音声出力は再作成できません。録音を停止してください。');
+  // Save the cursor against the OLD clock before replacing it with a zero clock.
+  cursor=position();playing=null;cut();origin=0;
+  pcmStore.cache.clear(); // Only the bounded playback cache, never the PCM DB.
+  if(ctx===context)ctx=null;
+  try { if(context.state!=='closed')Promise.resolve(context.close()).catch(()=>{}); } catch{}
+  update();draw();
+}
+function audio(resume=true) {
+  const create=()=>new(window.AudioContext||window.webkitAudioContext)();
+  // File/recording decode does not resume output or touch the user's position.
+  if(!resume){if(!ctx)ctx=create();return Promise.resolve(ctx)}
+  if(document.hidden)return Promise.reject(Error('ページを表示して再生ボタンを押してください。'));
+  if(audioFlight)return audioFlight.promise;
+  if(!ctx)ctx=create();
+  if(ctx.state==='running'&&!outputNeedsCheck)return Promise.resolve(ctx);
+  const flight={epoch:audioEpoch,cancel:null,promise:null};audioFlight=flight;
+  flight.promise=(async()=>{
+    let context=ctx;
+    try {
+      if(context.state==='closed')throw Error('closed');
+      await waitForOutput(context,flight,true);
+    } catch(error) {
+      if(flight.epoch!==audioEpoch||document.hidden)throw error;
+      // One replacement per explicit attempt. Never loop or auto-play on focus.
+      discardOutput(context);context=create();ctx=context;
+      try { await waitForOutput(context,flight,true); }
+      catch(error) {
+        outputNeedsCheck=true;
+        // Leave a fresh context available for the next explicit tap if the OS
+        // consumed transient activation while the old resume was timing out.
+        throw Error('音声出力を復旧できません。ページを表示したまま再生ボタンをもう一度押してください。');
+      }
+    }
+    if(flight.epoch!==audioEpoch||document.hidden)throw Error('音声出力の開始を中止しました。');
+    outputNeedsCheck=false;return context;
+  })().finally(()=>{if(audioFlight===flight)audioFlight=null});
+  return flight.promise;
+}
+function backgroundAudio() {
+  outputNeedsCheck=true;
+  // Also invalidate PLAY waiting for resume/IDB, even if playing is still null.
+  pause();
+  if(rec)stopRecord('ページが非表示になったため録音を終了');
+}
+
+// END audio-context
 function time(t){t=Math.max(0,t);const m=Math.floor(t/60),s=(t%60).toFixed(3).padStart(6,'0');return String(m).padStart(2,'0')+':'+s}
 function limits(){if(slots.A&&slots.B)return [Math.max(0,-offset),Math.min(slots.A.buffer.duration,slots.B.buffer.duration-offset)];return [0,slots.A?slots.A.buffer.duration:slots.B?slots.B.buffer.duration:0]}
 function position(){return playing?ctx.currentTime-origin:cursor}
-function cut(){const gain=transport?.gain;stopTransport();for(const s of sources){try{s.node.stop()}catch{}s.node.disconnect();s.node.buffer=null;s.gain.disconnect()}gain?.disconnect();sources=[]}
-function pause(reset=false){playToken++;cursor=reset?limits()[0]:position();playing=null;cut();update();draw()}
+function cut(){const gain=transport?.gain;stopTransport();for(const s of [...sources,...fadingSources]){try{s.node.stop()}catch{}s.node.disconnect();s.node.buffer=null;s.gain.disconnect()}gain?.disconnect();sources=[];fadingSources.clear()}
+function pause(reset=false){playToken++;cancelAudioStart();cursor=reset?limits()[0]:position();playing=null;cut();update();draw()}
 async function play(which){return playStored(which)}
 function update(){const locked=!!rec||pendingMic||busy.A||busy.B||analysisBusy,both=!!slots.A&&!!slots.B;for(const k of ['A','B']){$('play'+k).disabled=locked||!slots[k];$('play'+k).classList.toggle('active',playing===k);$('slot'+k).classList.toggle('playing',playing===k);document.querySelector('.legend'+k).classList.toggle('active',playing===k);$('file'+k).disabled=locked;$('air'+k).disabled=locked;$('clear'+k).disabled=locked||!slots[k];$('download'+k).disabled=locked||!slots[k];$('meta'+k).textContent=busy[k]?'読み込み・解析中…':slots[k]?`${time(slots[k].buffer.duration)} · ${slots[k].buffer.sampleRate} Hz · ${slots[k].buffer.numberOfChannels} ch`:'未読込';$('name'+k).textContent=slots[k]?slots[k].name:'FILE / AIR REC'}
 $('sync').disabled=locked||!both;$('resetSync').disabled=locked||!both;$('offset').disabled=locked||!both;document.querySelectorAll('.nudge').forEach(b=>b.disabled=locked||!both);$('record').disabled=locked;$('recSlot').disabled=locked;$('stopRecord').disabled=!rec||rec.stopping;$('pause').disabled=!playing;$('stop').disabled=!slots.A&&!slots.B;const [lo,hi]=limits();$('seek').min=lo;$('seek').max=Math.max(lo,hi);$('seek').disabled=locked||hi<=lo;$('seek').value=Math.max(lo,Math.min(hi,position()));$('now').textContent=playing?`PLAYING ${playing} / ${playing}を再生中`:'STOPPED / 停止中';$('position').textContent=time(position())}
@@ -320,5 +402,5 @@ function waveGraph(){const {g,w,h,l,r,t,b}=base('wave','A/B · amplitude / 同�
 function referenceBands(){const fs=[63,125,250,500,1000,2000,4000,8000,12000];function lookup(freqs,values,f){if(!values)return null;let j=freqs.findIndex(x=>x>=f);if(j<0)return values[values.length-1];if(j===0||freqs[j]===f)return values[j];const t=Math.log(f/freqs[j-1])/Math.log(freqs[j]/freqs[j-1]);return values[j-1]*(1-t)+values[j]*t}const el=$('bands');el.replaceChildren();for(const f of fs){const v=lookup(standard,lastLive,f),old=reference?lookup(reference.freqs||standard,reference.values,f):null;const item=document.createElement('div');item.className='band';const name=document.createElement('b');name.textContent=(f>=1000?f/1000+'k':f)+' Hz';const current=document.createElement('div');current.className='n';current.textContent=v===null?'-- dBFS':v.toFixed(1)+' dBFS';const delta=document.createElement('div');delta.className='delta';delta.textContent=v===null||old===null?'Δ -- dB':'Δ '+(v-old>=0?'+':'')+(v-old).toFixed(1)+' dB';item.append(name,current,delta);el.append(item)}}
 function draw(){referenceBands();waveGraph();const fs=$('freqMode').value==='music'?music:standard;freqGraph('spectrum',['A','B'].filter(k=>slots[k]).map(k=>({key:k,color:colors[k],freqs:fs,values:fs.map(f=>band(slots[k].power,slots[k].buffer.sampleRate,slots[k].fftSize,f))})),'dBFS ref · averaged spectrum');const old=reference?{color:'#a58bff',freqs:reference.freqs||standard,values:reference.values}:null;freqGraph('referenceChart',old?[old]:[],'REFERENCE / 保存スペクトル');$('referenceStatus').textContent=reference?'保存日時：'+reference.date:'保存された基準値はありません。';if(!rec)freqGraph('liveChart',old?[old]:[],'LIVE / 現在の入力・紫：保存基準')}
 let lastFrame=0;function tick(now){raf=requestAnimationFrame(tick);if(now-lastFrame<70)return;lastFrame=now;if(playing){if(position()>=limits()[1]){pause(true)}else{$('seek').value=position();$('position').textContent=time(position());if(activePage==='compare')waveGraph()}}if(rec&&!rec.stopping){const a=rec.analyser,data=new Float32Array(a.frequencyBinCount),wave=new Float32Array(a.fftSize);a.getFloatFrequencyData(data);a.getFloatTimeDomainData(wave);let sum=0;for(const v of wave)sum+=v*v;const db=20*Math.log10(Math.max(1e-8,Math.sqrt(sum/wave.length)));$('db').textContent=db.toFixed(1);$('level').style.width=Math.max(0,Math.min(100,(db+60)/60*100))+'%';const p=Float64Array.from(data,v=>Number.isFinite(v)?Math.pow(10,v/10):0);lastLive=standard.map(f=>band(p,ctx.sampleRate,a.fftSize,f)??-120);$('saveReference').disabled=false;if(activePage==='live')referenceBands();if(activePage==='live'){const s=[{color:colors.A,freqs:standard,values:lastLive}];if(reference)s.unshift({color:'#a58bff',freqs:reference.freqs||standard,values:reference.values});freqGraph('liveChart',s,'LIVE '+time((performance.now()-rec.started)/1000)+' · dBFS ref')}}}
-document.addEventListener('visibilitychange',()=>{if(document.hidden){if(playing){pause();say('ページが非表示になったため再生を一時停止しました。')}if(rec)stopRecord('ページが非表示になったため録音を終了')}});window.addEventListener('pagehide',e=>{if(rec)cleanMic(rec);cut();if(!e.persisted)pcmStore.close()});window.addEventListener('resize',draw);update();draw();raf=requestAnimationFrame(tick);
+document.addEventListener('visibilitychange',()=>{if(document.hidden){const wasPlaying=!!playing;backgroundAudio();if(wasPlaying)say('ページが非表示になったため再生を一時停止しました。')}});window.addEventListener('pagehide',e=>{backgroundAudio();if(rec)cleanMic(rec);if(!e.persisted)pcmStore.close()});window.addEventListener('resize',draw);update();draw();raf=requestAnimationFrame(tick);
 </script></body></html>
