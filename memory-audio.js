@@ -127,7 +127,7 @@ function scheduleChunk(t,buffer,index,from) {
   if(end<=begin) return;
   const when=t.origin+begin-t.shift;
   const node=ctx.createBufferSource();node.buffer=buffer;node.connect(t.gain);
-  const entry={node,gain:t.gain};sources.push(entry);
+  const entry={node,gain:t.gain,matchGain:t.matchGain,which:t.which};sources.push(entry);
   node.onended=()=>{node.disconnect();node.buffer=null;sources=sources.filter(s=>s!==entry)};
   node.start(when,begin-chunkStart,end-begin);
 }
@@ -163,13 +163,14 @@ async function playStored(which) {
       if(token!==playToken)return;
       let target=playing?position()+.06:p;if(target>=hi-.002)target=lo;
       if(Math.floor((target+shift)/step)!==index){p=target;continue;}
-      const start=ctx.currentTime+.06,gain=ctx.createGain();gain.connect(ctx.destination);
+      const start=ctx.currentTime+.06,gain=ctx.createGain(),matchGain=ctx.createGain();
+      matchGain.gain.value=playbackMatchGain(which);gain.connect(matchGain);matchGain.connect(ctx.destination);
       gain.gain.setValueAtTime(0,start);gain.gain.linearRampToValueAtTime(1,start+.008);
-      const old=sources,oldGain=transport?.gain; sources=[];stopTransport();
+      const old=sources,oldGain=transport?.gain,oldMatchGain=transport?.matchGain; sources=[];stopTransport();
       for(const s of old){fadingSources.add(s);s.gain.gain.cancelScheduledValues(ctx.currentTime);s.gain.gain.setValueAtTime(s.gain.gain.value,ctx.currentTime);s.gain.gain.linearRampToValueAtTime(0,start);try{s.node.stop(start)}catch{}}
-      setTimeout(()=>{for(const s of old){s.node.disconnect();s.node.buffer=null;s.gain.disconnect();fadingSources.delete(s)}oldGain?.disconnect()},150);
+      setTimeout(()=>{for(const s of old){s.node.disconnect();s.node.buffer=null;s.gain.disconnect();s.matchGain?.disconnect();fadingSources.delete(s)}oldGain?.disconnect();oldMatchGain?.disconnect()},150);
       origin=start-target;cursor=target;playing=which;
-      transport={asset,shift,origin,gain,end:hi+shift,next:index+1};
+      transport={asset,shift,origin,gain,matchGain,which,end:hi+shift,next:index+1};
       scheduleChunk(transport,first,index,target+shift);
       if(next){scheduleChunk(transport,next,index+1,(index+1)*step);transport.next++;}
       update();draw();void pumpTransport();return;

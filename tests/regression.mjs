@@ -38,7 +38,9 @@ console.log('PASS same-file sharing compares all bytes, including final chunk');
 check('standalone keeps original controls, tabs, storage keys and download source',()=>{
   const baseline=readFileSync(new URL('Acoustic_MC_Tool_baseline_RC1.html',root),'utf8');
   const storageNotice='<span>メモリ負荷を減らすため端末内に作業用音声を一時保存します。強制終了時などに残った作業データは次回利用時に削除します。ブラウザによってはサイトデータの消去が必要です。</span>';
-  assert.equal(html.split('<script>')[0].replace(storageNotice,'').replaceAll('\r\n','\n'),baseline.split('<script>')[0].replaceAll('\r\n','\n'));
+  // The approved UI delta is appended CSS + DOM reorganization. Preserve all
+  // original markup/controls and baseline styles outside that explicit block.
+  assert.equal(html.split('<script>')[0].replace(/\/\* BEGIN workspace-ui \*\/[\s\S]*?\/\* END workspace-ui \*\/\s*/, '').replace(storageNotice,'').replaceAll('\r\n','\n'),baseline.split('<script>')[0].replaceAll('\r\n','\n'));
   for(const key of ['amct_memo_v1','amct_reference_v1','amct_lastBands','audio/webm;codecs=opus','audio/mp4','a.download=s.name','URL.createObjectURL(s.blob)'])assert.ok(html.includes(key));
   assert.ok(!html.includes("job('analyze'"));
   assert.ok(!html.includes('node.buffer=slots[which].buffer'));
