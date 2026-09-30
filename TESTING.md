@@ -163,3 +163,37 @@ Added **RUN PAGE FULLSCREEN TESTS** to the browser harness and the aggregate lan
 Validation: all five Node suites PASS (9/16/11/2/3), `git diff --check` PASS, and the full browser landscape run **161 checks PASS** (previous 143 plus new 18). This includes native recording/save, 13-minute same/distinct MP4, output-context recovery and gain matching, not just routing checks. Browser viewport testing is not physical iPhone Safari certification.
 
 Portrait routing: all 3 pages retain their own target while waiting for landscape (3 additional checks PASS). Actual UI verification: click LISTEN expand at 390×844, rotate viewport to 844×390, and inspect the resulting large waveform/time/seek with no spectrum. Screenshot checked. The prior compact-header change is preserved.
+
+## Follow-up: Photos/camera video input and LISTEN preview — 2026-09-30
+
+Retained fix list: #5 compact shared headers; #6 current-page fullscreen (LISTEN waveform, COMPARE spectrum, DIFF differences); this follow-up adds video input/preview without replacing either. The base is merged main `c1fa0b158c4311d218838aad96e248707c01aac1`.
+
+### Diagnosis and scope
+
+Previously every picked movie went directly to `decodeAudioData` as a complete video container, without inspecting its tracks or extracting audio. A native container decode failure prevented committing the slot. The File input was cleared immediately after selection, before asynchronous reading completed. There was no video metadata or display path at all. This patch hardens these concrete gaps; **the user's physical iPhone picker failure has not been reproduced here, so neither early clearing nor container decoding is claimed as the single proven device root cause**. Standard File references normally survive input clearing. Empty/incomplete payloads, read/decode/storage errors now have stage-specific messages and retain the previous slot.
+
+`media-input.js` inspects actual ISO BMFF/QuickTime tracks, including files with missing MIME types, with a bounded 32 MiB index. For regular single-audio-track AAC/ALAC MP4/MOV, it creates an audio-only container using original compressed audio Blob slices and patched chunk offsets, retaining timing/edit tables. No transcoding, whole-video ArrayBuffer, server upload, or second whole PCM asset is introduced. Fragmented containers and other audio codecs keep the native decode path. The original movie Blob remains available for SAVE and preview. Shared byte-identical A/B input still shares its PCM asset. Picker input is cleared only after import finishes, allowing repeated selection of the same file.
+
+`video-preview.js` uses one muted/inline video element for the active LISTEN slot only. It follows the existing Web Audio clock plus B's sync offset, pauses/seeks with transport, and hides stale frames during source changes or significant drift. Small drift uses bounded rate correction. Leaving LISTEN, entering waveform fullscreen, importing audio or backgrounding releases the visual source/URL. Only the original Blob is referenced; the encoded video is not duplicated. Other pages, audio-only LISTEN layout, audio output nodes, gain algorithms and sync algorithm are unchanged. An audio/WebM AIR REC is explicitly not classified as a video by extension. Unsupported visual codecs/autoplay failures show a message and retry without discarding decoded audio.
+
+### Reproduction
+
+Run the original five Node suites plus `node tests/media-input.mjs` (10 new parser tests). Generate the small synthetic camera-like fixture outside the repo at `../fixtures/camera.mov` using an available FFmpeg executable:
+
+```
+ffmpeg -f lavfi -i testsrc2=size=320x180:rate=30 -f lavfi -i sine=frequency=440:sample_rate=48000 -t 12 -c:v libx264 -pix_fmt yuv420p -c:a aac -ac 2 -movflags +faststart ../fixtures/camera.mov
+```
+
+Start `node tests/server.mjs`, open `/tests` in landscape, and run **RUN ALL LANDSCAPE TESTS** (including the existing 13-minute fixtures). **RUN VIDEO INPUT TESTS** can also run separately. Real native File/DataTransfer input handlers are exercised with QuickTime MIME and empty MIME. These simulate browser-delivered files; they do not operate an iPhone camera or Photos picker.
+
+New checks cover sample-exact native-versus-extracted MOV audio and equal duration; A/B commits and delayed input clearing; shared same-file PCM and unchanged source blob; muted single preview; PLAY/PAUSE/STOP/SEEK; A/B video replacement; positive/negative manual offset; automatic sync result; FILE gain state; release on COMPARE/DIFF/MEMO; waveform fullscreen/return; background suspension/explicit resume; failed-payload slot preservation; audio-only and AIR WebM classification; bounded cache. Existing recording/save, context replacement, gain, bands, DIFF, memo and long-file tests remain in the aggregate suite.
+
+### Remaining device/format limits
+
+Validation result: all six Node suites PASS (9/16/11/2/3 existing groups/scenarios plus 10 new media cases). Full browser landscape aggregate **191 checks PASS** (161 existing + 30 video checks), including both distinct 13-minute MP4 assets and background video recovery. `git diff --check` PASS. This is desktop native-browser testing, not a physical Safari result.
+
+- Physical iPhone Safari Photos-library selection and **Take Video** are still unverified. Test the original failing files and freshly captured MOV/MP4 on the target iPhone, both slots, with iCloud originals fully downloaded. Empty/non-delivered OS picker files cannot be reconstructed by the web app.
+- Safari must support the actual audio/video codecs; a `.mov`/`.mp4` extension does not guarantee this. Silent videos cannot participate in audio comparison. Multiple audio tracks are rejected explicitly rather than silently choosing an unintended track. Oversized/malformed indices are rejected. Legacy/fragmented containers depend on native decoding.
+- Separate native audio/video clocks cannot promise sample-accurate video sync. The preview corrects drift and hides outdated frames; tests use a 150 ms visible-frame tolerance, not a claim of perceptually perfect lip-sync on every device. Low-power/autoplay restrictions may require the visible retry action.
+- The existing one-file transient full audio decode still exists. Serial decoding, chunked retained PCM and the eight-chunk cache are preserved, but high-resolution video decoding adds native decoder memory and device memory reloads cannot be ruled out. No second video buffer is created by this patch.
+- LISTEN fullscreen continues to enlarge the waveform, as explicitly requested in fix #2; normal LISTEN is where movie frames are displayed.
