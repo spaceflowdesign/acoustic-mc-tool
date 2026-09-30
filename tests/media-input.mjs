@@ -60,4 +60,18 @@ await check('truncated/missing AAC configuration never passed to native decode',
 await check('sample counts, durations and timescales audited before decode',async()=>{
   for(const changes of [{stts:()=>atom('stts',u32(0,1,1,1024))},{stts:()=>atom('stts',u32(0,1,2,1000))},{mdhd:()=>atom('mdhd',u32(0,0,0,0,2048,0))}]){const source=rewrite(new Uint8Array(await make().arrayBuffer()),changes);await assert.rejects(c.inspectMediaInput(new Blob([source])),/stts|timescale/);}
 });
+await check('serialized remux audit reports requested fields and last SAMPLE, not chunk, offset',async()=>{
+  const result=await c.inspectMediaInput(make()),r=result.audit;
+  assert.equal(r.blobSize,result.audioBlob.size);assert.equal(r.mimeType,'audio/mp4');assert.equal(r.ftyp.major,'M4A ');assert.equal(r.codec,'mp4a');assert.equal(r.channelCount,2);assert.equal(r.sampleRate,48000);assert.equal(r.sampleCount,2);assert.equal(r.media.timescale,48000);assert.equal(r.duration,2048/48000);assert.equal(r.aac.ascHex,'1190');
+  assert.equal(r.offsetTable.type,'stco');assert.equal(r.offsetTable.values[0].offset,r.mdat.payloadStart);assert.equal(r.firstSampleOffset,r.mdat.payloadStart);assert.equal(r.lastSampleOffset,r.firstSampleOffset+4);assert.equal(r.lastSampleOffset+r.lastSampleSize,r.mdat.endExclusive);assert.ok(r.sourcePacketProbes.every(p=>p.equal));
+});
+await check('readback audit rejects bad offsets, altered source bytes, references and tables',async()=>{
+  const result=await c.inspectMediaInput(make()),bytes=new Uint8Array(await result.audioBlob.arrayBuffer());
+  for(const changes of [{stco:b=>{dv(b).setUint32(16,8);return b;}},{stsz:b=>{dv(b).setUint32(12,5);return b;}},{stts:b=>{dv(b).setUint32(20,1023);return b;}},{stsd:b=>{dv(b).setUint16(30,2);return b;}}])await assert.rejects(c.auditRemuxBlob(new Blob([rewrite(bytes,changes)],{type:'audio/mp4'})),/remux:/);
+  const corrupted=bytes.slice();corrupted[result.audit.mdat.payloadStart]^=1;
+  await assert.rejects(c.auditRemuxBlob(new Blob([corrupted]),{source:make(),chunks:[{start:8,size:8}]}),/source packet bytes/);
+});
+await check('audit reads only bounded headers and packet probes, never whole remux body',async()=>{
+  const result=await c.inspectMediaInput(make()),requests=[],b=result.audioBlob;b.arrayBuffer=()=>{throw Error('full blob read forbidden');};const slice=b.slice.bind(b);b.slice=(start,end)=>{requests.push(end-start);return slice(start,end);};await c.auditRemuxBlob(b);assert.ok(requests.every(n=>n<result.audioBlob.size));
+});
 console.log(`${count} media-input tests passed`);

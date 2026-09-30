@@ -58,3 +58,35 @@ const videoTests=makeAction('RUN VIDEO INPUT TESTS',async()=>{
     log('VIDEO INPUT TESTS COMPLETE');
   }catch(error){log('FAIL '+error.stack);}finally{window.confirm=confirmOriginal;pause();videoTests.disabled=false;}
 });testBox.append(videoTests);
+
+const remuxProbeTests=makeAction('RUN REMUX DIAGNOSTIC TESTS',async()=>{
+  remuxProbeTests.disabled=true;const NativeOffline=window.OfflineAudioContext;
+  const waitFor=async(fn,label)=>{for(let i=0;i<200;i++){if(fn())return;await delay(40);}throw Error('Timeout '+label);};
+  try{
+    pause(true);await loadBlob('A',wav(1),'prior-A.wav');await loadBlob('B',wav(2),'prior-B.wav');
+    setOffset(125);const a=slots.A,b=slots.B,context=ctx,match=gainResult,memo=$('memo').value;
+    const movie=await (await fetch('/camera.mov')).blob();
+    window.OfflineAudioContext=class extends NativeOffline{decodeAudioData(bytes){return Promise.reject(new DOMException('injected Safari failure','EncodingError'));}};
+    try{await loadBlob('A',new File([movie],'IMG_FAILURE.MOV',{type:'video/quicktime'}),'IMG_FAILURE.MOV');}finally{window.OfflineAudioContext=NativeOffline;}
+    assertTest(slots.A===a&&slots.B===b&&ctx===context&&gainResult===match&&offset===.125&&$('memo').value===memo,'injected remux EncodingError preserves prior A/B, context, gain, sync and memo');
+    assertTest(inputEvents.some(e=>e.event==='失敗'&&e.stage==='動画内音声のデコード'&&e.error.startsWith('EncodingError')),'regression reaches actual remux/decode stage, not picker or alternate track');
+    const audit=inputEvents.findLast(e=>e.event==='remux Blob読戻し監査'),decode=inputEvents.findLast(e=>e.event==='decodeAudioData直前');
+    assertTest(audit?.codec==='mp4a'&&audit.track.id===2&&audit.track.enabled&&audit.aac.ascHex&&audit.moovAtoms.some(b=>b.type==='smhd'),'serialized single-track MOV audit includes AAC ASC and required sound header');
+    assertTest(decode.path==='audio-track-remux'&&decode.arrayBufferByteLength===audit.blobSize&&decode.mimeType==='audio/mp4','actual pre-decode buffer byteLength equals audited remux Blob size');
+    assertTest(remuxDiagnostic.blob?.size===audit.blobSize&&!remuxDiagnostic.url&&!$('remuxProbeAudio').getAttribute('src'),'failed import retains only one compressed audio Blob; no automatic native playback');
+    const packetEnd=audit.lastSampleOffset+audit.lastSampleSize;
+    assertTest(audit.firstSampleOffset===audit.mdat.payloadStart&&packetEnd===audit.mdat.endExclusive&&audit.offsetTable.values[0].offset===audit.firstSampleOffset,'serialized first/last SAMPLE offsets and complete mdat end agree');
+    openDialog('sourceDialog');$('inputLog').closest('details').open=true;await delay(30);$('remuxProbe').click();
+    await waitFor(()=>inputEvents.some(e=>e.event==='remux audio診断結果'),'native audio probe');
+    assertTest(inputEvents.findLast(e=>e.event==='remux audio診断結果').result==='playback-progress','same remux Blob makes real HTMLAudioElement playback progress independently of Web Audio');
+    assertTest(!remuxDiagnostic.url&&!$('remuxProbeAudio').getAttribute('src')&&ctx===context&&slots.A===a&&offset===.125,'probe releases decoder/URL without replacing A/B or AudioContext');
+    const nativePlay=HTMLMediaElement.prototype.play;
+    try{HTMLMediaElement.prototype.play=function(){return Promise.reject(new DOMException('test policy','NotAllowedError'));};$('remuxProbe').click();await waitFor(()=>inputEvents.at(-1)?.result==='gesture-blocked-inconclusive','gesture denial');}finally{HTMLMediaElement.prototype.play=nativePlay;}
+    assertTest(inputEvents.at(-1).result==='gesture-blocked-inconclusive'&&!remuxDiagnostic.url,'autoplay/gesture rejection is inconclusive, never labelled broken container');
+    $('remuxProbe').click();const closed=new Promise(r=>$('sourceDialog').addEventListener('close',r,{once:true}));$('sourceDialog').close();await closed;
+    assertTest(!remuxDiagnostic.url&&!$('remuxProbeAudio').getAttribute('src'),'closing diagnostic dialog cancels and releases native probe');
+    await loadBlob('A',wav(3),'next.wav');assertTest(!remuxDiagnostic.blob&&$('remuxProbe').disabled,'next import releases failed compressed Blob and disables diagnostics');
+    assertTest(typeof window.AudioDecoder==='undefined'||!String(startRemuxAudioProbe).includes('AudioDecoder'),'probe has no WebCodecs AudioDecoder requirement');
+    log('REMUX DIAGNOSTIC TESTS COMPLETE');
+  }catch(e){log('FAIL '+e.stack);}finally{window.OfflineAudioContext=NativeOffline;clearRemuxDiagnostic();if($('sourceDialog').open)$('sourceDialog').close();pause();remuxProbeTests.disabled=false;}
+});testBox.append(remuxProbeTests);

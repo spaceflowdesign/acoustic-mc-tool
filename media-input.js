@@ -45,7 +45,8 @@ function isoAACDescription(bytes,stsd){
   // must not be guessed/re-encoded. ISO's legacy 16.16 field cannot hold 96k.
   const base=new Uint8Array(28),bv=new DataView(base.buffer);bv.setUint16(6,1);bv.setUint16(16,channels);bv.setUint16(18,16);bv.setUint32(24,sampleRate<=65535?Math.round(sampleRate*65536):0);
   const normalized=atomBytes('stsd',[bytes.subarray(stsd.start+stsd.header,stsd.start+stsd.header+8),atomBytes('mp4a',[base,bytes.subarray(esds.start,esds.end)])]);
-  return {bytes:normalized,info:{sourceVersion:version,esdsLocation:wave?'wave':'direct',objectType,ascRate:rate,channelConfig,channels,sampleRate,ascBytes:asc.end-asc.start}};
+  const ascHex=Array.from(bytes.subarray(asc.start,Math.min(asc.end,asc.start+4096)),b=>b.toString(16).padStart(2,'0')).join('');
+  return {bytes:normalized,info:{sourceVersion:version,esdsLocation:wave?'wave':'direct',objectType,ascRate:rate,channelConfig,channels,sampleRate,ascBytes:asc.end-asc.start,ascHex,ascTruncated:asc.end-asc.start>4096}};
 }
 async function inspectMediaInput(blob,name=''){
   const mediaRead=part=>typeof readMediaBytes==='function'?readMediaBytes(part):part.arrayBuffer();
@@ -135,5 +136,45 @@ async function inspectMediaInput(blob,name=''){
   for(const c of chunks){if(entrySize===8)view.setBigUint64(c.at,BigInt(next));else view.setUint32(c.at,next);next+=c.size;}
   const audioMoov=buildMoov(),mdat=new Uint8Array(8);new DataView(mdat.buffer).setUint32(0,total+8);mdat.set([109,100,97,116],4);
   if(typeof recordInput==='function')recordInput('MEDIA','remux検証',{format:'ISO M4A',codec,aac:aac?.info,chunkCount,sampleCount,audioBytes:total,movieTimescale:movie.scale,mediaTimescale:media.scale,mediaDuration:ticks,trackDuration,editList:!!elst,moovBytes:audioMoov.length,firstOffset:ftyp.length+audioMoov.length+8,endOffset:next});
-  return {isVideo:true,audioBlob:new Blob([ftyp,audioMoov,mdat,...chunks.map(c=>blob.slice(c.start,c.start+c.size))],{type:'audio/mp4'}),path:'audio-track-remux',codec,selection,selectedTrackId,notice};
+  const audioBlob=new Blob([ftyp,audioMoov,mdat,...chunks.map(c=>blob.slice(c.start,c.start+c.size))],{type:'audio/mp4'});
+  const audit=await auditRemuxBlob(audioBlob,{source:blob,chunks});
+  if(typeof recordInput==='function')recordInput('MEDIA','remux Blob読戻し監査',audit);
+  return {isVideo:true,audioBlob,audit,path:'audio-track-remux',codec,selection,selectedTrackId,notice};
+}
+
+// Read the SERIALIZED Blob, not just the remux builder's calculated offsets.
+// Only moov and tiny packet probes enter JS memory; never the whole movie.
+async function auditRemuxBlob(blob,expected=null){
+  const read=async(start,end)=>new Uint8Array(await (typeof readMediaBytes==='function'?readMediaBytes(blob.slice(start,end)):blob.slice(start,end).arrayBuffer()));
+  const top=[];let moov=null,brands=null;
+  for(let at=0;at<blob.size;){const head=await read(at,at+16);if(head.length<8)throw Error('remux: truncated top-level header');const v=new DataView(head.buffer);let size=v.getUint32(0),header=8;if(size===1){if(head.length<16)throw Error('remux: truncated large header');size=Number(v.getBigUint64(8));header=16;}if(size===0)size=blob.size-at;if(!Number.isSafeInteger(size)||size<header||at+size>blob.size)throw Error('remux: invalid atom boundary');const type=atomType(head,4);top.push({type,start:at,end:at+size,header});if(top.length>16)throw Error('remux: unexpected top-level atoms');
+    if(type==='moov'){if(size>32*1024*1024)throw Error('remux: oversized moov');moov=await read(at,at+size);}
+    if(type==='ftyp'){if(size>256||size<header+8||(size-header-8)%4)throw Error('remux: invalid ftyp');const b=await read(at,at+size);brands={major:atomType(b,header),minorVersion:new DataView(b.buffer).getUint32(header+4),compatible:[]};for(let p=header+8;p<b.length;p+=4)brands.compatible.push(atomType(b,p));}at+=size;
+  }
+  if(!moov||!brands||top.map(b=>b.type).join(',')!=='ftyp,moov,mdat')throw Error('remux: expected ftyp/moov/mdat');
+  const view=new DataView(moov.buffer),root=atomList(moov)[0],kids=n=>atomList(moov,n.start+n.header,n.end),one=(n,type)=>{const list=kids(n).filter(b=>b.type===type);if(list.length!==1)throw Error('remux: expected one '+type);return list[0];};
+  const mvhd=one(root,'mvhd'),trak=one(root,'trak'),tkhd=one(trak,'tkhd'),mdia=one(trak,'mdia'),mdhd=one(mdia,'mdhd'),hdlr=one(mdia,'hdlr'),minf=one(mdia,'minf'),dinf=one(minf,'dinf'),dref=one(dinf,'dref'),stbl=one(minf,'stbl'),stsd=one(stbl,'stsd'),stts=one(stbl,'stts'),stsc=one(stbl,'stsc'),stsz=one(stbl,'stsz');
+  const warnings=[],smhd=kids(minf).find(b=>b.type==='smhd');if(!smhd)warnings.push('smhd missing');else if(smhd.end-smhd.start!==smhd.header+8)warnings.push('smhd size unexpected');
+  const u32=(box,offset)=>{const at=box.start+box.header+offset;if(at+4>box.end)throw Error('remux: truncated '+box.type);return view.getUint32(at);};
+  const times=box=>{const p=box.start+box.header,version=moov[p];if(version>1||p+(version?32:20)>box.end)throw Error('remux: invalid timing header');const timescale=u32(box,version?20:12),duration=version?Number(view.getBigUint64(p+24)):u32(box,16);if(!timescale||!Number.isSafeInteger(duration))throw Error('remux: invalid timing');return {version,timescale,duration,seconds:duration/timescale};};
+  const movie=times(mvhd),media=times(mdhd),tp=tkhd.start+tkhd.header,tv=moov[tp];if(tv>1||tp+(tv?48:36)>tkhd.end)throw Error('remux: truncated tkhd');const trackId=u32(tkhd,tv?20:12),trackDuration=tv?Number(view.getBigUint64(tp+28)):u32(tkhd,20),alternateGroup=view.getUint16(tp+(tv?46:34));
+  const entries=atomList(moov,stsd.start+stsd.header+8,stsd.end);if(u32(stsd,4)!==1||entries.length!==1)throw Error('remux: sample description count');const entry=entries[0],ep=entry.start+entry.header;if(ep+28>entry.end)throw Error('remux: truncated audio entry');const dataReferenceIndex=view.getUint16(ep+6);
+  const refs=atomList(moov,dref.start+dref.header+8,dref.end);if(u32(dref,4)!==1||refs.length!==1||refs[0].type!=='url '||u32(refs[0],0)!==1||dataReferenceIndex!==1)throw Error('remux: broken self-contained data reference');
+  if(atomType(moov,hdlr.start+hdlr.header+8)!=='soun'||alternateGroup!==0||!trackId)throw Error('remux: invalid audio track references');
+  const aac=entry.type==='mp4a'?isoAACDescription(moov,stsd).info:null;
+  const offsetBoxes=kids(stbl).filter(b=>b.type==='stco'||b.type==='co64');if(offsetBoxes.length!==1)throw Error('remux: ambiguous chunk offsets');const offsets=offsetBoxes[0],width=offsets.type==='co64'?8:4,chunkCount=u32(offsets,4),sampleCount=u32(stsz,8),fixed=u32(stsz,4),mapCount=u32(stsc,4),timeCount=u32(stts,4);
+  if(!chunkCount||chunkCount>1000000||!sampleCount||sampleCount>4000000||!mapCount||mapCount>chunkCount||offsets.end-offsets.start!==offsets.header+8+chunkCount*width||stsc.end-stsc.start!==stsc.header+8+mapCount*12||stsz.end-stsz.start!==stsz.header+12+(fixed?0:sampleCount*4)||stts.end-stts.start!==stts.header+8+timeCount*8)throw Error('remux: inconsistent sample-table length');
+  const map=[];for(let i=0;i<mapCount;i++){const first=u32(stsc,8+i*12),count=u32(stsc,12+i*12),description=u32(stsc,16+i*12);if(!count||description!==1||first>chunkCount||(i?first<=map[i-1].first:first!==1))throw Error('remux: invalid stsc');map.push({first,count});}
+  const mdat=top[2],mdatStart=mdat.start+mdat.header,values=[],sourceOffsets=[],probes=[];let sample=0,mi=0,next=mdatStart,lastSampleOffset=null,lastSampleSize=0;
+  for(let i=0;i<chunkCount;i++){while(mi+1<map.length&&map[mi+1].first<=i+1)mi++;const count=map[mi].count;if(sample+count>sampleCount)throw Error('remux: stsc exceeds stsz');let bytes=0;for(let j=0;j<count;j++){lastSampleSize=fixed||u32(stsz,12+(sample+j)*4);if(!lastSampleSize)throw Error('remux: empty AAC sample');bytes+=lastSampleSize;}sample+=count;
+    const p=offsets.start+offsets.header+8+i*width,value=width===8?Number(view.getBigUint64(p)):view.getUint32(p);if(value!==next||!Number.isSafeInteger(value)||value+bytes>mdat.end)throw Error('remux: chunk offset / mdat / sample size mismatch');lastSampleOffset=value+bytes-lastSampleSize;next=value+bytes;
+    const source=expected?.chunks[i];if(expected&&(!source||source.size!==bytes))throw Error('remux: original sample table mismatch');
+    if(chunkCount<=128||i<64||i>=chunkCount-64){values.push({chunk:i+1,offset:value});if(source)sourceOffsets.push({chunk:i+1,offset:source.start});}
+    if(source&&(i===0||i===Math.floor(chunkCount/2)||i===chunkCount-1)){const n=Math.min(bytes,64),a=await read(value,value+n),part=expected.source.slice(source.start,source.start+n),b=new Uint8Array(await (typeof readMediaBytes==='function'?readMediaBytes(part):part.arrayBuffer()));if(a.length!==b.length||a.some((v,j)=>v!==b[j]))throw Error('remux: source packet bytes differ');probes.push({chunk:i+1,bytes:n,equal:true});}
+  }
+  if(sample!==sampleCount||next!==mdat.end||expected&&expected.chunks.length!==chunkCount)throw Error('remux: sample count / mdat end mismatch');
+  let ticks=0,timed=0;const sampleDurations=[];for(let i=0;i<timeCount;i++){const count=u32(stts,8+i*8),delta=u32(stts,12+i*8);if(!count||!delta)throw Error('remux: invalid sample duration');ticks+=count*delta;timed+=count;if(i<32)sampleDurations.push({count,delta});}if(timed!==sampleCount||ticks!==media.duration)throw Error('remux: stts / mdhd mismatch');
+  const edts=kids(trak).find(b=>b.type==='edts'),edits=[];let editCount=0;if(edts){const elst=one(edts,'elst'),p=elst.start+elst.header,v=moov[p],stride=v?20:12;editCount=u32(elst,4);if(v>1||elst.end-p!==8+stride*editCount)throw Error('remux: invalid elst');for(let i=0;i<Math.min(editCount,32);i++){const q=p+8+i*stride;edits.push({segmentDuration:v?Number(view.getBigUint64(q)):view.getUint32(q),mediaTime:v?Number(view.getBigInt64(q+8)):view.getInt32(q+4),rateInteger:view.getInt16(q+(v?16:8)),rateFraction:view.getUint16(q+(v?18:10))});}}
+  const atoms=[];const walk=n=>{atoms.push({type:n.type,start:n.start,end:n.end});if(['moov','trak','mdia','minf','dinf','stbl','edts'].includes(n.type))for(const b of kids(n))walk(b);};walk(root);
+  return {blobSize:blob.size,mimeType:blob.type,ftyp:brands,codec:entry.type,channelCount:aac?.channels||view.getUint16(ep+16),sampleRate:aac?.sampleRate||view.getUint32(ep+24)/65536,duration:trackDuration/movie.timescale,movie,media,track:{id:trackId,enabled:!!(moov[tp+3]&1),alternateGroup,dataReferenceIndex,duration:trackDuration},sampleCount,firstSampleOffset:mdatStart,lastSampleOffset,lastSampleSize,mdat:{atomStart:mdat.start,payloadStart:mdatStart,endExclusive:mdat.end},offsetTable:{type:offsets.type,count:chunkCount,values,omitted:Math.max(0,chunkCount-128)},sourceOffsets,sourcePacketProbes:probes,aac,sampleDurations,sampleDurationEntryCount:timeCount,editCount,edits,topLevel:top,moovAtoms:atoms,warnings};
 }
