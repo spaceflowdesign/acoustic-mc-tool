@@ -2,7 +2,7 @@
 const inputEvents=[],pickerFlights=new Map();
 function recordInput(side,event,details={}){
   inputEvents.push({at:new Date().toISOString(),side,event,...details});if(inputEvents.length>40)inputEvents.shift();
-  if($('inputLog'))$('inputLog').value=JSON.stringify({build:'2026-09-30-input-v2',userAgent:navigator.userAgent,events:inputEvents},null,2);
+  if($('inputLog'))$('inputLog').value=JSON.stringify({build:'2026-09-30-iso-aac-remux-v3',userAgent:navigator.userAgent,events:inputEvents},null,2);
 }
 async function readMediaBytes(blob){
   try{return await blob.arrayBuffer();}catch(first){
