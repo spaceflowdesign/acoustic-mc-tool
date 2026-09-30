@@ -52,6 +52,10 @@ dialog{color:#eafaff;background:#06111a;border:1px solid #1d6078;border-radius:1
 /* Page-header descriptions only; graph dimensions and control layout stay intact. */
 .fixed-design .listen-heading{font-size:10px;line-height:1.3;margin:3px 0}
 .fixed-design [data-panel=diff]>.card>.graph-scope{font-size:9px;line-height:1.3;margin:2px 0}
+/* LISTEN enlarges its waveform, not the spectrum; time/seek stay prominent. */
+#graphDialog.listen-fullscreen #miniWave,#graphDialog.listen-fullscreen #visualStatus{display:none}
+#graphDialog.listen-fullscreen #miniStrip .mini-info{font-size:16px;line-height:24px;min-height:24px}
+#graphDialog.listen-fullscreen #miniStrip #seek{height:32px;min-height:32px}
 
 /* END workspace-ui */
 </style></head><body><div class="wrap">
@@ -782,6 +786,8 @@ function drawReactiveGraph(){
   const live=playing&&['A','B'].some(k=>visibleSource(k)!==slots[k]);$('visualStatus').textContent=(live?'再生位置の解析':visualState.failed?'追従解析停止 · 原音の平均解析':'原音の平均解析')+' · '+($('freqMode').value==='standard'?'1/3 OCT':'MUSIC '+(bandSettings.custom?'CUSTOM':'DEFAULT'));
 }
 function drawMiniWave(){
+  // LISTEN fullscreen uses the large waveform, but retains the same clock/seek.
+  if($('miniTime')){const [start,end]=limits();$('miniTime').textContent=time(Math.max(0,position()-start))+' / '+time(Math.max(0,end-start));}
   const c=$('miniWave');if(!c||!c.getBoundingClientRect().width)return;const rect=c.getBoundingClientRect(),w=rect.width,h=rect.height,dpr=devicePixelRatio||1;
   if(c.width!==Math.round(w*dpr)||c.height!==Math.round(h*dpr)){c.width=Math.round(w*dpr);c.height=Math.round(h*dpr);}const g=c.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,w,h);const [lo,hi]=limits(),span=Math.max(.001,hi-lo);
   for(const k of ['A','B']){const s=slots[k];if(!s)continue;g.strokeStyle=colors[k];g.globalAlpha=playing&&playing!==k?.35:.85;g.beginPath();for(let px=0;px<w;px++){const sec=lo+px/w*span+(k==='B'?offset:0),j=Math.max(0,Math.min(1599,Math.floor(sec/s.buffer.duration*1600)));let min=1,max=-1;for(const ch of s.wave){min=Math.min(min,ch.min[j]);max=Math.max(max,ch.max[j]);}g.moveTo(px,h/2-max*h*.44);g.lineTo(px,h/2-min*h*.44);}g.stroke();}g.globalAlpha=1;const px=Math.max(0,Math.min(w,(position()-lo)/span*w));g.strokeStyle='#fff';g.shadowColor='#00dcff';g.shadowBlur=7;g.beginPath();g.moveTo(px,0);g.lineTo(px,h);g.stroke();g.shadowBlur=0;$('miniTime').textContent=time(Math.max(0,position()-lo))+' / '+time(Math.max(0,hi-lo));
@@ -800,6 +806,10 @@ function renderBandControls(){document.querySelectorAll('[data-band-mode]').forE
 function setBandMode(mode){bandSettings.custom=mode==='custom';saveBands();renderBandControls();if(bandSettings.custom)openDialog('bandsDialog');}
 function shiftSeek(seconds){if($('seek').disabled)return;const [lo,hi]=limits();$('seek').value=Math.max(lo,Math.min(hi,position()+seconds));$('seek').dispatchEvent(new Event('input'));}
 function makeAction(text,handler,attributes={}){const b=element('button',{class:'alt',type:'button',...attributes},text);b.onclick=handler;return b;}
+function expandCurrentPage(){
+  const target={listen:['wave','LISTEN · A/B WAVEFORM'],compare:['spectrum','COMPARE'],diff:['diffChart','DIFF FOCUS']}[activePage];
+  if(target)expandGraph(...target);
+}
 function pageControls(index){controlPage=Math.max(0,Math.min(2,index));document.querySelectorAll('[data-control-page]').forEach(el=>el.hidden=Number(el.dataset.controlPage)!==controlPage);$('controlPrev').disabled=controlPage===0;$('controlNext').disabled=controlPage===2;$('controlRow').setAttribute('aria-label','操作パネル '+(controlPage+1)+' / 3');}
 function initFullscreenControls(){
   const row=element('div',{id:'controlRow'},'<button id="controlPrev" class="alt" aria-label="前の操作パネル">◀</button><div id="controlPages"></div><button id="controlNext" class="alt" aria-label="次の操作パネル">▶</button>');$('graphDialog').append(row);
@@ -827,13 +837,13 @@ initWorkspace=function(){
   const ribbon=document.querySelector('.source-ribbon');mini.after(ribbon);
   const panel=element('div',{id:'mainControls'},'<button id="inlineDiff" class="alt" aria-pressed="true">▥　DIFF<br><small>B − A (dB)</small></button><label class="smoothing-label">Smoothing<select id="smoothing" aria-label="Smoothing"><option value="0">OFF</option><option value="0.16666666666666666" selected>1/6 Oct</option><option value="0.3333333333333333">1/3 Oct</option></select></label>');ribbon.after(panel);panel.append($('gainToggle'),makeAction('⛓　AUTO SYNC',()=>$('sync').click(),{id:'quickSync'}),makeAction('▤　MEMO　　Add notes …　›',()=>changePage('history'),{id:'quickMemo'}));
   const extras=element('div',{id:'displayControls'});extras.append($('freqMode'));
-  const bandMode=element('select',{'data-band-mode':'','aria-label':'Default / Custom'},'<option value="default">Default</option><option value="custom">Custom</option>');bandMode.onchange=()=>setBandMode(bandMode.value);extras.append(bandMode,makeAction('帯域編集',()=>openDialog('bandsDialog')),makeAction('⛶',()=>expandGraph('spectrum','COMPARE'),{'aria-label':'横画面フルスクリーン'}));panel.append(extras);
+  const bandMode=element('select',{'data-band-mode':'','aria-label':'Default / Custom'},'<option value="default">Default</option><option value="custom">Custom</option>');bandMode.onchange=()=>setBandMode(bandMode.value);extras.append(bandMode,makeAction('帯域編集',()=>openDialog('bandsDialog')),makeAction('⛶',expandCurrentPage,{'aria-label':'横画面フルスクリーン'}));panel.append(extras);
   $('freqMode').value='music';$('freqMode').setAttribute('aria-label','表示方式');$('freqMode').onchange=()=>{updateWorkspace();draw();};
   $('smoothing').onchange=()=>{smoothingOct=Number($('smoothing').value);visualState.smoothed={};draw();};$('inlineDiff').onclick=()=>{showInlineDiff=!showInlineDiff;updateWorkspace();draw();};
   const displayDialog=addDialog('displayDialog','DISPLAY / BANDS');displayDialog.querySelector('.dialog-body').append($('smoothing'),extras);
   const settingsLabel=document.querySelector('.smoothing-label');settingsLabel.replaceChildren(makeAction('Smoothing　⌄<br><small>1/6 Oct · 表示設定</small>',()=>openDialog('displayDialog'),{id:'openDisplay','aria-label':'Smoothing・帯域表示設定'}));
   $('smoothing').addEventListener('change',()=>{$('openDisplay').innerHTML='Smoothing　⌄<br><small>'+($('smoothing').selectedOptions[0].textContent)+' · 表示設定</small>';});
-  const expandInline=makeAction('⛶',()=>expandGraph('spectrum','COMPARE'),{'aria-label':'グラフを横画面に拡大',class:'inline-expand alt'});$('miniStrip').querySelector('.mini-info').append(expandInline);
+  const expandInline=makeAction('⛶',expandCurrentPage,{'aria-label':'グラフを横画面に拡大',class:'inline-expand alt'});$('miniStrip').querySelector('.mini-info').append(expandInline);
   panel.after($('transportDock'));$('transportDock').classList.add('compact-transport');$('transportDock').querySelector('.seeklabel').hidden=true;
   $('status').remove();const status=element('p',{id:'status',role:'status','aria-live':'polite',class:'workspace-status'},'A/Bへ音源を読み込んでください。');$('transportDock').after(status);
   const bandsDialog=addDialog('bandsDialog','CUSTOM BANDS');bandsDialog.querySelector('.dialog-body').append(element('p',{},'隣接する境界を20〜20,000 Hzの範囲で昇順に指定します。'),element('div',{id:'customValues'}));
@@ -873,9 +883,9 @@ updateWorkspace=function(){
 expandGraph=function(id,title){
   if(fullGraph)return;if(!matchMedia('(orientation: landscape)').matches){pendingGraph={id,title};openDialog('rotateDialog');return;}
   pendingGraph=null;const box=$(id).parentElement,marker=document.createComment('graph-home');box.before(marker);fullGraph={id,box,marker,trigger:document.activeElement};box.hidden=false;$('graphHost').append(box);
-  moveWithMarker($('miniStrip'),$('graphDialog'));$('graphDialog').append($('controlRow'));$('miniStrip').hidden=false;$('graphDialog').querySelector('h2').textContent=title;openDialog('graphDialog');pageControls(0);updateWorkspace();draw();
+  moveWithMarker($('miniStrip'),$('graphDialog'));$('graphDialog').append($('controlRow'));$('miniStrip').hidden=false;$('graphDialog').classList.toggle('listen-fullscreen',activePage==='listen'&&id==='wave');$('graphDialog').querySelector('h2').textContent=title;openDialog('graphDialog');pageControls(0);updateWorkspace();draw();
 };
-restoreGraph=function(){if(!fullGraph||$('graphDialog').open)return;const {box,marker,trigger}=fullGraph;marker.replaceWith(box);for(const {el,marker:m}of fullMoves)m.replaceWith(el);fullMoves=[];fullGraph=null;updateWorkspace();draw();trigger?.focus();};
+restoreGraph=function(){if(!fullGraph||$('graphDialog').open)return;const {box,marker,trigger}=fullGraph;marker.replaceWith(box);for(const {el,marker:m}of fullMoves)m.replaceWith(el);fullMoves=[];fullGraph=null;$('graphDialog').classList.remove('listen-fullscreen');updateWorkspace();draw();trigger?.focus();};
 window.addEventListener('resize',()=>{if(matchMedia('(orientation: landscape)').matches&&pendingGraph){const p=pendingGraph;pendingGraph=null;$('rotateDialog').close();expandGraph(p.id,p.title);}else if(!matchMedia('(orientation: landscape)').matches&&fullGraph){const p={id:fullGraph.id,title:$('graphDialog').querySelector('h2').textContent};$('graphDialog').close();restoreGraph();pendingGraph=p;openDialog('rotateDialog');}});
 
 // END workspace-ui
