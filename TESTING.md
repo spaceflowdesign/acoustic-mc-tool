@@ -143,3 +143,11 @@ Regression-test adaptations follow the approved changes: four main pages instead
 ### Still required before device distribution
 
 Physical **iPhone Safari is unverified**. Test the user's original MP4, microphone permission and actual speaker output, rotations with orientation lock/browser-toolbar changes, back-edge gestures, background/app-switch recovery, low storage and long continuous playback. Repeated memory-limit failure during the existing one-file transient decode remains possible; this patch preserves the serialized decoding and bounded retained playback cache but cannot promise Safari never reloads. AIR provenance limitations, noise/AGC limitations and all preceding output-recovery safeguards remain as documented above.
+
+## Follow-up: compact page header — 2026-09-30
+
+User-requested CSS-only reduction of the LISTEN/COMPARE/DIFF/MEMO page header. Shared heading font is 14px (previously 27px, or 24px on narrow screens); page arrows are 28×28px (previously 48×53px). Header row plus bottom margin is 32px, approximately half of the previous 63px. LISTEN's short description and DIFF's short scope description use smaller type and margins. The logo row, audio logic, graph dimensions, source cards, controls and bottom navigation are unchanged.
+
+Measured with Browser at 390×844: all four pages have a 28px header row, 14px title and 28px arrow height, without horizontal overflow. COMPARE graph top moved from 126px to 94.67px; graph height remained 303.83px, mini waveform strip 70.33px and main control grid 162px. Document height changed from 873px to 844px, eliminating the portrait scrollbar at this viewport. The available content width naturally increased when the desktop scrollbar disappeared; no component width rule was changed. Screenshot visually checked. This remains browser viewport testing, not physical iPhone certification.
+
+Rebuilt standalone HTML and reran all five Node suites (9/16/11/2/3 groups/scenarios), plus `git diff --check`: PASS. Used actual bottom-navigation buttons to verify all four header layouts. The earlier 143 audio/browser checks are the pre-header checkpoint; this CSS-only follow-up did not alter or rerun their audio-processing code.
