@@ -36,7 +36,7 @@ workspaceButton.onclick=async()=>{
       assertTest(!fullGraph&&box.parentElement===parent&&!document.body.classList.contains('modal-open'),'fullscreen close restores same canvas: '+id);
     }
     assertTest($('wave').parentElement.hidden&&!$('spectrum').parentElement.hidden&&$('miniWave').getBoundingClientRect().height<60,'approved main graph plus small waveform; original large waveform retained in menu');
-    showHelp('解析');assertTest($('helpDialog').open&&$('helpDialog').textContent.length>100,'original analysis explanation retained in help');$('helpDialog').close();await delay(30);
+    showHelp('解析');assertTest($('helpDialog').open&&$('helpDialog').textContent.includes('音に含まれる'),'analysis help starts with concise function explanation');$('helpDialog').querySelector('.dialog-body > button').click();assertTest($('helpDialog').textContent.length>100,'original analysis explanation retained in detail level');$('helpDialog').close();await delay(30);
     $('openLive').click();assertTest(activePage==='live','AIR REC auxiliary page retained');$('leaveLive').click();assertTest(activePage==='compare','AIR REC return restores page');
     log('WORKSPACE TESTS COMPLETE');
   }catch(error){log('FAIL '+error.stack)}finally{window.confirm=confirmBefore;$('memo').value=memoBefore;$('memo').oninput();workspaceButton.disabled=false;pause();}

@@ -10,9 +10,12 @@ function releaseVideoPreview(){
 }
 function syncVideoPreview(){
   const v=$('listenVideo'),panel=$('listenVideoPanel');if(!v)return;
-  const side=playing||selectedSide,slot=slots[side],active=activePage==='listen'&&!fullGraph&&!document.hidden&&!busy.A&&!busy.B&&slot?.media?.isVideo;
-  panel.hidden=!active;
+  const side=playing||selectedSide,slot=slots[side],active=activePage==='listen'&&!document.hidden&&!busy.A&&!busy.B&&slot?.media?.isVideo;
+  // Fullscreen is visual only. Do not load/unload a native media element at
+  // that boundary: even muted media lifecycle can affect Safari's audio session.
+  panel.hidden=!active||!!fullGraph;
   if(!active){if(videoPreview.slot)releaseVideoPreview();return;}
+  if(fullGraph){if(!playing&&!v.paused)v.pause();return;}
   $('videoSource').textContent=side+' VIDEO · '+slot.name;
   if(videoPreview.slot!==slot){
     releaseVideoPreview();videoPreview.slot=slot;videoPreview.url=URL.createObjectURL(slot.blob);videoPreview.token=playToken;
@@ -49,7 +52,7 @@ initWorkspace=function(){
   v.addEventListener('error',()=>{if(!videoPreview.slot||!v.getAttribute('src'))return;videoPreview.blocked=true;v.style.visibility='hidden';$('videoStatus').textContent='このブラウザで映像を開けません（形式・コーデックを確認してください）。読み込んだ音声は保持しています。';$('retryVideo').hidden=false;});
   $('retryVideo').onclick=()=>{videoPreview.blocked=false;if(v.error){const src=v.src;v.src=src;v.load();}syncVideoPreview();};
   for(const k of ['A','B']){const input=$('file'+k);input.accept='audio/*,video/*,.mov,.mp4,.m4v,.m4a,.wav,.mp3,.webm';document.querySelector('label[for=file'+k+']').textContent='FILE / 音声・動画';}
-  helpText['ファイルと再生'].push('写真ライブラリ・撮影・ファイル選択は同じ入力として処理します。MP4/MOVのAAC/ALAC音声は再圧縮せず音声トラックだけを取り出して解析します。元動画はSAVE時まで変更しません。映像はLISTEN専用で、他画面・波形拡大中は映像デコーダーを解放します。映像の形式がブラウザ非対応の場合は明示し、解析済み音声は保持します。');
+  helpText['ファイルと再生'].push('写真ライブラリ・撮影・ファイル選択は同じ入力として処理します。MP4/MOVのAAC/ALAC音声は再圧縮せず音声トラックだけを取り出して解析します。元動画はSAVE時まで変更しません。映像はLISTEN専用で、他画面では映像デコーダーを解放します。波形拡大では映像を隠すだけで再生経路を維持します。映像の形式がブラウザ非対応の場合は明示し、解析済み音声は保持します。');
   const section=element('section');section.append(element('h3',{},'動画入力 / LISTEN'),element('p',{},'動画の音声を既存A/B処理で解析・再生します。映像は選択中の1スロットだけをミュート・インライン表示し、Web Audioの時刻にBのSYNCオフセットを加えて追従します。A/B切替・シーク中は古い位置の映像を隠し、同期後に表示します。映像は別のデコーダーなのでサンプル単位の同期保証はありません。Safariの映像コーデック、低電力・自動再生制限、写真ライブラリ側のファイル提供失敗はWeb側だけでは解決できません。'));
   $('aboutDialog').querySelector('.dialog-body').append(section);
   document.addEventListener('visibilitychange',syncVideoPreview);window.addEventListener('pagehide',releaseVideoPreview);

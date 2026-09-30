@@ -109,7 +109,7 @@ function updateWorkspace(){
   $('transportDock').hidden=!['compare','diff'].includes(activePage);
   for(const id of ['wave','spectrum'])if(fullGraph?.id!==id)$(id).parentElement.hidden=id!==compareView;
   document.querySelectorAll('[data-graph]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.graph===compareView)));
-  $('graphFormat').hidden=compareView!=='spectrum';$('memoCard').hidden=memoView!=='memo';$('referenceCard').hidden=memoView!=='reference';
+  $('graphFormat').hidden=compareView!=='spectrum';$('memoCard').hidden=memoView!=='memo';$('referenceCard').hidden=$('referenceDialog')?!$('referenceDialog').open:memoView!=='reference';
   document.querySelectorAll('[data-memo]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.memo===memoView)));
   refreshGainMatch();
 }

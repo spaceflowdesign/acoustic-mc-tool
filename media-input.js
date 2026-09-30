@@ -11,17 +11,18 @@ function atomList(bytes,start=0,end=bytes.length){
 }
 function atomBytes(type,parts){const n=8+parts.reduce((s,b)=>s+b.length,0);if(n>0xffffffff)throw Error('動画ヘッダーが大きすぎます');const out=new Uint8Array(n),v=new DataView(out.buffer);v.setUint32(0,n);for(let i=0;i<4;i++)out[4+i]=type.charCodeAt(i);let at=8;for(const p of parts){out.set(p,at);at+=p.length;}return out;}
 async function inspectMediaInput(blob,name=''){
+  const mediaRead=part=>typeof readMediaBytes==='function'?readMediaBytes(part):part.arrayBuffer();
   if(!blob.size)throw Error('選択されたファイルが空です。写真ライブラリでダウンロードが完了してから選び直してください。');
-  const first=new Uint8Array(await blob.slice(0,16).arrayBuffer());
+  const first=new Uint8Array(await mediaRead(blob.slice(0,16)));
   const hint=/^video\//i.test(blob.type)||(!/^audio\//i.test(blob.type)&&/\.(mov|mp4|m4v|webm|mkv|avi|3gp)$/i.test(name));
   if(!['ftyp','moov','mdat','wide','free'].includes(atomType(first,4)))return {isVideo:hint,audioBlob:blob,path:'native'};
   let moov=null,fragmented=false;const dataRanges=[];
   for(let at=0,count=0;at<blob.size;count++){
     if(count>10000)throw Error('動画のatom数が上限を超えています');
-    const head=new Uint8Array(await blob.slice(at,at+16).arrayBuffer());if(head.length<8)throw Error('動画ファイルの末尾が不完全です');const v=new DataView(head.buffer);let size=v.getUint32(0),header=8;
+    const head=new Uint8Array(await mediaRead(blob.slice(at,at+16)));if(head.length<8)throw Error('動画ファイルの末尾が不完全です');const v=new DataView(head.buffer);let size=v.getUint32(0),header=8;
     if(size===1){if(head.length<16)throw Error('動画の拡張ヘッダーが不完全です');size=Number(v.getBigUint64(8));header=16;}if(!size)size=blob.size-at;
     if(!Number.isSafeInteger(size)||size<header||at+size>blob.size)throw Error('動画ファイルのサイズ情報が不正です');const type=atomType(head,4);
-    if(type==='moov'){if(size>32*1024*1024)throw Error('動画の索引が大きすぎます（上限32 MiB）。元のA/Bは保持しています。');moov=new Uint8Array(await blob.slice(at,at+size).arrayBuffer());}
+    if(type==='moov'){if(size>32*1024*1024)throw Error('動画の索引が大きすぎます（上限32 MiB）。元のA/Bは保持しています。');moov=new Uint8Array(await mediaRead(blob.slice(at,at+size)));}
     if(type==='moof')fragmented=true;if(type==='mdat')dataRanges.push([at+header,at+size]);at+=size;
   }
   if(!moov)throw Error('動画の索引がありません。撮影・書き出しの完了後に選び直してください。');
@@ -29,6 +30,7 @@ async function inspectMediaInput(blob,name=''){
   const child=(node,type)=>atomList(moov,node.start+node.header,node.end).find(x=>x.type===type);
   for(const trak of children.filter(x=>x.type==='trak')){const mdia=child(trak,'mdia'),hdlr=mdia&&child(mdia,'hdlr');if(hdlr&&hdlr.start+hdlr.header+12<=hdlr.end)tracks.push({trak,mdia,kind:atomType(moov,hdlr.start+hdlr.header+8)});}
   const isVideo=tracks.some(t=>t.kind==='vide'),audio=tracks.filter(t=>t.kind==='soun');
+  if(typeof recordInput==='function')recordInput('MEDIA','コンテナのトラック',{tracks:tracks.map(t=>{const minf=child(t.mdia,'minf'),stbl=minf&&child(minf,'stbl'),stsd=stbl&&child(stbl,'stsd');return {kind:t.kind,codec:stsd?atomType(moov,stsd.start+stsd.header+12):''};}),fragmented});
   if(!isVideo)return {isVideo:false,audioBlob:blob,path:'native'};
   if(!audio.length)throw Error('この動画には音声トラックがありません。A/B音声比較には音声付き動画が必要です。');
   if(audio.length!==1)throw Error('複数の音声トラックを含む動画です。比較する音声トラックを1つにした動画を使用してください。');

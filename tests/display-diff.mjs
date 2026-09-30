@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
+const mode={value:'music'},c=vm.createContext({$:()=>mode,slots:{},playing:null,offset:0});
+for(const file of ['band-display.js','comparison-math.js','realtime-view.js'])vm.runInContext(readFileSync(new URL('../'+file,import.meta.url),'utf8'),c);
+const power=new Float64Array(4097).fill(1e-7),other=power.slice();other[43]=.01;
+c.a={power,fftSize:8192,buffer:{sampleRate:48000}};c.b={...c.a,power:other};
+assert.equal(vm.runInContext('smoothingOct',c),0);
+const off=c.currentDifferences(c.a,c.b);vm.runInContext('smoothingOct=1/3',c);const on=c.currentDifferences(c.a,c.b);
+assert.ok(on.some((r,i)=>Math.abs(r.delta-off[i].delta)>.1));
+const smoothed=c.smoothedDisplaySource(c.b);
+for(const i of [8,43,100,512,2000,4000])assert.ok(Math.abs(10*Math.log10(smoothed.power[i])-c.plotLevel(c.b,i*48000/8192))<1e-6);
+assert.equal(c.b.power,other);assert.equal(other[43],.01);assert.equal(power[43],1e-7);
+vm.runInContext('smoothingOct=0',c);assert.equal(c.smoothedDisplaySource(c.b),c.b);
+console.log('PASS fresh Smoothing OFF; DIFF responds to smoothing; prefix sums match COMPARE; raw input unchanged');
