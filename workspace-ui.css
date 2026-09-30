@@ -34,3 +34,7 @@ dialog{color:#eafaff;background:#06111a;border:1px solid #1d6078;border-radius:1
 /* Page-header descriptions only; graph dimensions and control layout stay intact. */
 .fixed-design .listen-heading{font-size:10px;line-height:1.3;margin:3px 0}
 .fixed-design [data-panel=diff]>.card>.graph-scope{font-size:9px;line-height:1.3;margin:2px 0}
+/* LISTEN enlarges its waveform, not the spectrum; time/seek stay prominent. */
+#graphDialog.listen-fullscreen #miniWave,#graphDialog.listen-fullscreen #visualStatus{display:none}
+#graphDialog.listen-fullscreen #miniStrip .mini-info{font-size:16px;line-height:24px;min-height:24px}
+#graphDialog.listen-fullscreen #miniStrip #seek{height:32px;min-height:32px}

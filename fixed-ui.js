@@ -8,6 +8,10 @@ function renderBandControls(){document.querySelectorAll('[data-band-mode]').forE
 function setBandMode(mode){bandSettings.custom=mode==='custom';saveBands();renderBandControls();if(bandSettings.custom)openDialog('bandsDialog');}
 function shiftSeek(seconds){if($('seek').disabled)return;const [lo,hi]=limits();$('seek').value=Math.max(lo,Math.min(hi,position()+seconds));$('seek').dispatchEvent(new Event('input'));}
 function makeAction(text,handler,attributes={}){const b=element('button',{class:'alt',type:'button',...attributes},text);b.onclick=handler;return b;}
+function expandCurrentPage(){
+  const target={listen:['wave','LISTEN · A/B WAVEFORM'],compare:['spectrum','COMPARE'],diff:['diffChart','DIFF FOCUS']}[activePage];
+  if(target)expandGraph(...target);
+}
 function pageControls(index){controlPage=Math.max(0,Math.min(2,index));document.querySelectorAll('[data-control-page]').forEach(el=>el.hidden=Number(el.dataset.controlPage)!==controlPage);$('controlPrev').disabled=controlPage===0;$('controlNext').disabled=controlPage===2;$('controlRow').setAttribute('aria-label','操作パネル '+(controlPage+1)+' / 3');}
 function initFullscreenControls(){
   const row=element('div',{id:'controlRow'},'<button id="controlPrev" class="alt" aria-label="前の操作パネル">◀</button><div id="controlPages"></div><button id="controlNext" class="alt" aria-label="次の操作パネル">▶</button>');$('graphDialog').append(row);
@@ -35,13 +39,13 @@ initWorkspace=function(){
   const ribbon=document.querySelector('.source-ribbon');mini.after(ribbon);
   const panel=element('div',{id:'mainControls'},'<button id="inlineDiff" class="alt" aria-pressed="true">▥　DIFF<br><small>B − A (dB)</small></button><label class="smoothing-label">Smoothing<select id="smoothing" aria-label="Smoothing"><option value="0">OFF</option><option value="0.16666666666666666" selected>1/6 Oct</option><option value="0.3333333333333333">1/3 Oct</option></select></label>');ribbon.after(panel);panel.append($('gainToggle'),makeAction('⛓　AUTO SYNC',()=>$('sync').click(),{id:'quickSync'}),makeAction('▤　MEMO　　Add notes …　›',()=>changePage('history'),{id:'quickMemo'}));
   const extras=element('div',{id:'displayControls'});extras.append($('freqMode'));
-  const bandMode=element('select',{'data-band-mode':'','aria-label':'Default / Custom'},'<option value="default">Default</option><option value="custom">Custom</option>');bandMode.onchange=()=>setBandMode(bandMode.value);extras.append(bandMode,makeAction('帯域編集',()=>openDialog('bandsDialog')),makeAction('⛶',()=>expandGraph('spectrum','COMPARE'),{'aria-label':'横画面フルスクリーン'}));panel.append(extras);
+  const bandMode=element('select',{'data-band-mode':'','aria-label':'Default / Custom'},'<option value="default">Default</option><option value="custom">Custom</option>');bandMode.onchange=()=>setBandMode(bandMode.value);extras.append(bandMode,makeAction('帯域編集',()=>openDialog('bandsDialog')),makeAction('⛶',expandCurrentPage,{'aria-label':'横画面フルスクリーン'}));panel.append(extras);
   $('freqMode').value='music';$('freqMode').setAttribute('aria-label','表示方式');$('freqMode').onchange=()=>{updateWorkspace();draw();};
   $('smoothing').onchange=()=>{smoothingOct=Number($('smoothing').value);visualState.smoothed={};draw();};$('inlineDiff').onclick=()=>{showInlineDiff=!showInlineDiff;updateWorkspace();draw();};
   const displayDialog=addDialog('displayDialog','DISPLAY / BANDS');displayDialog.querySelector('.dialog-body').append($('smoothing'),extras);
   const settingsLabel=document.querySelector('.smoothing-label');settingsLabel.replaceChildren(makeAction('Smoothing　⌄<br><small>1/6 Oct · 表示設定</small>',()=>openDialog('displayDialog'),{id:'openDisplay','aria-label':'Smoothing・帯域表示設定'}));
   $('smoothing').addEventListener('change',()=>{$('openDisplay').innerHTML='Smoothing　⌄<br><small>'+($('smoothing').selectedOptions[0].textContent)+' · 表示設定</small>';});
-  const expandInline=makeAction('⛶',()=>expandGraph('spectrum','COMPARE'),{'aria-label':'グラフを横画面に拡大',class:'inline-expand alt'});$('miniStrip').querySelector('.mini-info').append(expandInline);
+  const expandInline=makeAction('⛶',expandCurrentPage,{'aria-label':'グラフを横画面に拡大',class:'inline-expand alt'});$('miniStrip').querySelector('.mini-info').append(expandInline);
   panel.after($('transportDock'));$('transportDock').classList.add('compact-transport');$('transportDock').querySelector('.seeklabel').hidden=true;
   $('status').remove();const status=element('p',{id:'status',role:'status','aria-live':'polite',class:'workspace-status'},'A/Bへ音源を読み込んでください。');$('transportDock').after(status);
   const bandsDialog=addDialog('bandsDialog','CUSTOM BANDS');bandsDialog.querySelector('.dialog-body').append(element('p',{},'隣接する境界を20〜20,000 Hzの範囲で昇順に指定します。'),element('div',{id:'customValues'}));
@@ -81,7 +85,7 @@ updateWorkspace=function(){
 expandGraph=function(id,title){
   if(fullGraph)return;if(!matchMedia('(orientation: landscape)').matches){pendingGraph={id,title};openDialog('rotateDialog');return;}
   pendingGraph=null;const box=$(id).parentElement,marker=document.createComment('graph-home');box.before(marker);fullGraph={id,box,marker,trigger:document.activeElement};box.hidden=false;$('graphHost').append(box);
-  moveWithMarker($('miniStrip'),$('graphDialog'));$('graphDialog').append($('controlRow'));$('miniStrip').hidden=false;$('graphDialog').querySelector('h2').textContent=title;openDialog('graphDialog');pageControls(0);updateWorkspace();draw();
+  moveWithMarker($('miniStrip'),$('graphDialog'));$('graphDialog').append($('controlRow'));$('miniStrip').hidden=false;$('graphDialog').classList.toggle('listen-fullscreen',activePage==='listen'&&id==='wave');$('graphDialog').querySelector('h2').textContent=title;openDialog('graphDialog');pageControls(0);updateWorkspace();draw();
 };
-restoreGraph=function(){if(!fullGraph||$('graphDialog').open)return;const {box,marker,trigger}=fullGraph;marker.replaceWith(box);for(const {el,marker:m}of fullMoves)m.replaceWith(el);fullMoves=[];fullGraph=null;updateWorkspace();draw();trigger?.focus();};
+restoreGraph=function(){if(!fullGraph||$('graphDialog').open)return;const {box,marker,trigger}=fullGraph;marker.replaceWith(box);for(const {el,marker:m}of fullMoves)m.replaceWith(el);fullMoves=[];fullGraph=null;$('graphDialog').classList.remove('listen-fullscreen');updateWorkspace();draw();trigger?.focus();};
 window.addEventListener('resize',()=>{if(matchMedia('(orientation: landscape)').matches&&pendingGraph){const p=pendingGraph;pendingGraph=null;$('rotateDialog').close();expandGraph(p.id,p.title);}else if(!matchMedia('(orientation: landscape)').matches&&fullGraph){const p={id:fullGraph.id,title:$('graphDialog').querySelector('h2').textContent};$('graphDialog').close();restoreGraph();pendingGraph=p;openDialog('rotateDialog');}});

@@ -32,10 +32,40 @@ const bandsTests=makeAction('RUN BANDS / LISTEN TESTS',async()=>{
     log('BANDS / LISTEN TESTS COMPLETE');
   }catch(error){log('FAIL '+error.stack);}finally{pause();bandSettings=parseBandSettings(oldSettings);saveBands();renderBandControls();$('memo').value=memo;bandsTests.disabled=false;}
 });testBox.append(bandsTests);
+const pageFullscreenTests=makeAction('RUN PAGE FULLSCREEN TESTS',async()=>{
+  pageFullscreenTests.disabled=true;
+  const closeGraph=()=>new Promise(resolve=>{$('graphDialog').addEventListener('close',resolve,{once:true});$('graphDialog').querySelector('[data-close]').click();});
+  try{
+    if(!matchMedia('(orientation: landscape)').matches){
+      for(const [page,id]of [['listen','wave'],['compare','spectrum'],['diff','diffChart']]){changePage(page);document.querySelector('.inline-expand').click();assertTest(pendingGraph?.id===id&&!fullGraph&&$('rotateDialog').open,'portrait rotation request retains '+page+' target');const closed=new Promise(r=>$('rotateDialog').addEventListener('close',r,{once:true}));$('rotateDialog').close();await closed;}
+      log('PAGE FULLSCREEN PORTRAIT TESTS COMPLETE');return;
+    }
+    pause(true);const a=wav(24),bytes=await a.arrayBuffer(),v=new DataView(bytes);for(let i=44;i<bytes.byteLength;i+=2)v.setInt16(i,v.getInt16(i,true)*2,true);
+    await loadBlob('A',a,'fullscreen-A.wav');await loadBlob('B',new Blob([bytes],{type:'audio/wav'}),'fullscreen-B.wav');setOffset(125);if(!gainEnabled)toggleGainMatch();
+    await play('B');await delay(120);assertTest(gainEnabled&&gainResult.valid&&transport.matchGain.gain.value<1,'fullscreen fixture has active gain compensation and nonzero sync');
+    const state={A:slots.A,B:slots.B,ctx,offset,gain:gainResult,transport,origin};
+    for(const [page,id]of [['listen','wave'],['compare','spectrum'],['diff','diffChart']]){
+      changePage(page);const parent=$(id).parentElement.parentElement,p=position();document.querySelector('.inline-expand').click();
+      assertTest(fullGraph?.id===id&&$(id).parentElement.parentElement===$('graphHost')&&activePage===page,'actual '+page+' button enlarges its own main content');
+      assertTest(transport===state.transport&&origin===state.origin&&playing==='B'&&ctx===state.ctx&&offset===state.offset&&gainEnabled&&gainResult===state.gain&&slots.A===state.A&&slots.B===state.B,'opening '+page+' preserves transport, gain, sync and source identities');
+      assertTest(position()>=p-.01&&position()<p+.5,'opening '+page+' never resets or seeks playback');
+      if(page==='listen'){
+        assertTest($('spectrum').parentElement.parentElement!==$('graphHost')&&$('wave').getBoundingClientRect().height>150,'LISTEN displays large A/B waveform, never COMPARE spectrum');
+        assertTest(parseFloat(getComputedStyle($('miniTime')).fontSize)>=16&&$('seek').getBoundingClientRect().height>=32,'LISTEN fullscreen enlarges current/total time and seek');
+        const stamp=$('miniTime').textContent;await delay(180);assertTest($('miniTime').textContent!==stamp&&$('miniTime').textContent.includes('/'),'LISTEN time continues with large waveform playhead');
+      }
+      await closeGraph();assertTest(!fullGraph&&$(id).parentElement.parentElement===parent&&activePage===page&&transport===state.transport&&playing==='B'&&offset===state.offset&&gainEnabled&&gainResult===state.gain,'closing '+page+' restores layout without changing playback/gain/sync');
+    }
+    changePage('listen');document.querySelector('.inline-expand').click();const p=position();$('seek').value=p+1;$('seek').dispatchEvent(new Event('input'));await delay(180);
+    assertTest(playing==='B'&&position()>p+.8&&gainEnabled&&offset===.125,'LISTEN fullscreen seek works without dropping gain or sync');
+    await closeGraph();assertTest(activePage==='listen'&&playing==='B'&&position()>p+.8,'LISTEN seek position survives return');
+    log('PAGE FULLSCREEN TESTS COMPLETE');
+  }catch(error){log('FAIL '+error.stack);}finally{pause();pageFullscreenTests.disabled=false;}
+});testBox.append(pageFullscreenTests);
 const allSuites=makeAction('RUN ALL LANDSCAPE TESTS',async()=>{
   allSuites.disabled=true;
   try{if(!matchMedia('(orientation: landscape)').matches)throw Error('Landscape viewport required');
-    for(const button of [testButton,mp4Button,recoveryButton,workspaceButton,gainTests,bandsTests]){await button.onclick();if(/(^|\n)FAIL /.test(out.textContent))throw Error('Stop: suite failed');}
+    for(const button of [testButton,mp4Button,recoveryButton,workspaceButton,gainTests,bandsTests,pageFullscreenTests]){await button.onclick();if(/(^|\n)FAIL /.test(out.textContent))throw Error('Stop: suite failed');}
     log('ALL LANDSCAPE TESTS COMPLETE: '+out.textContent.split('\n').filter(line=>line.startsWith('PASS ')).length+' checks');
   }catch(error){log('FAIL '+error.message);}finally{allSuites.disabled=false;}
 });testBox.append(allSuites);
