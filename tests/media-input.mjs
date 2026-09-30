@@ -17,4 +17,14 @@ await check('fragmented input explicitly uses native decoder',async()=>assert.eq
 await check('out-of-bounds chunk references rejected',()=>assert.rejects(c.inspectMediaInput(make([track('vide'),track('soun',999999)])),/参照先/));
 await check('truncated container rejected',()=>assert.rejects(c.inspectMediaInput(make().slice(0,25),'broken.mov'),/サイズ情報/));
 await check('unmodified WAV uses native path',async()=>{const b=new Blob(['RIFF1234WAVE'],{type:'audio/wav'});assert.equal((await c.inspectMediaInput(b,'test.wav')).audioBlob,b);});
+function alternate(id,group,enabled,{version=0,codec='mp4a',ref=false}={}){
+  const header=new Uint8Array(version?96:84),v=new DataView(header.buffer);header[0]=version;header[3]=enabled?1:0;v.setUint32(version?20:12,id);v.setUint16(version?46:34,group);
+  const data=track('soun'),index=Array.from(data).findIndex((_,i)=>String.fromCharCode(...data.slice(i,i+4))==='mp4a');data.set(Uint8Array.from(codec,x=>x.charCodeAt(0)),index);
+  return atom('trak',atom('tkhd',header),...(ref?[atom('tref',atom('fall',u32(99)))]:[]),data.slice(8));
+}
+await check('TN3177 enabled AAC chosen regardless of serialized order',async()=>{for(const tracks of [[alternate(7,3,true,{ref:true}),alternate(9,3,false,{codec:'apac'})],[alternate(9,3,false,{codec:'apac'}),alternate(7,3,true,{ref:true})]]){const r=await c.inspectMediaInput(make([track('vide'),...tracks]));assert.equal(r.selectedTrackId,7);assert.equal(r.selection,'enabled-alternate');assert.ok(r.notice.includes('7'));const bytes=new Uint8Array(await r.audioBlob.arrayBuffer());assert.ok(!new TextDecoder().decode(bytes).includes('tref'));assert.equal((await c.inspectMediaInput(r.audioBlob)).isVideo,false);}});
+await check('version 1 track header default selection',async()=>{const r=await c.inspectMediaInput(make([track('vide'),alternate(9,3,false,{version:1,codec:'apac'}),alternate(7,3,true,{version:1})]));assert.equal(r.selectedTrackId,7);});
+await check('ambiguous defaults/groups/ids are not guessed',async()=>{for(const tracks of [[alternate(1,0,true),alternate(2,0,false)],[alternate(1,1,true),alternate(2,2,false)],[alternate(1,1,true),alternate(2,1,true)],[alternate(1,1,false),alternate(2,1,false)],[alternate(1,1,true),alternate(1,1,false)]])await assert.rejects(c.inspectMediaInput(make([track('vide'),...tracks])),/既定選択/);});
+await check('unsupported enabled codec never silently chooses disabled AAC',()=>assert.rejects(c.inspectMediaInput(make([track('vide'),alternate(1,1,true,{codec:'apac'}),alternate(2,1,false)])),/単独抽出/));
+await check('fragmented multitrack does not use ambiguous native-container fallback',()=>assert.rejects(c.inspectMediaInput(make([track('vide'),alternate(1,1,true),alternate(2,1,false)],[atom('mvex',u32(0))])),/単独抽出/));
 console.log(`${count} media-input tests passed`);

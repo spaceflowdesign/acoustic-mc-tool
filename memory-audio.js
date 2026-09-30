@@ -87,7 +87,7 @@ async function prepareAsset(blob) {
   const id=++pcmStore.serial;
   let buffer=null,bytes=null;
   try {
-    bytes=await blob.arrayBuffer();
+    bytes=await readMediaBytes(blob);
     // A timeout cannot cancel decodeAudioData. Keep the serialization lock until
     // the native decoder actually settles; otherwise a retry overlaps decoders.
     decodePending=true;

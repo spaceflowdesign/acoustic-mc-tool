@@ -1,7 +1,23 @@
-let bandSettings=parseBandSettings(null),smoothingOct=1/6,showInlineDiff=true;
+let bandSettings=parseBandSettings(null),smoothingOct=0,showInlineDiff=true;
 try{bandSettings=parseBandSettings(localStorage.getItem('amct_bands_v1'));}catch{}
 function currentEdges(){return bandSettings.custom?bandSettings.edges:defaultEdges;}
-function currentDifferences(a=slots.A,b=slots.B){return $('freqMode').value==='standard'?spectralDifferences(a,b,standard,band):displayDifferences(a,b,currentEdges());}
+const diffSmoothCache=new WeakMap();
+function smoothedDisplaySource(s){
+  if(!s||!smoothingOct)return s;
+  const cached=diffSmoothCache.get(s.power);if(cached?.width===smoothingOct)return {...s,power:cached.power};
+  // Prefix sums keep display smoothing linear-time even on large fullscreen
+  // plots. Never mutate the raw FFT, source PCM, or Web Audio nodes.
+  const sum=new Float64Array(s.power.length+1);for(let i=0;i<s.power.length;i++)sum[i+1]=sum[i]+s.power[i];
+  const sr=s.buffer.sampleRate,n=s.fftSize,factor=2**(smoothingOct/2);
+  const power=Float64Array.from(s.power,(_,i)=>{const f=i*sr/n,low=Math.max(20,f/factor),high=Math.min(sr/2,f*factor),lo=Math.max(1,Math.ceil(low*n/sr)),hi=Math.min(s.power.length-1,Math.ceil(high*n/sr)-1);return low>=high||hi<lo?1e-12:Math.max(1e-12,(sum[hi+1]-sum[lo])/(hi-lo+1));});
+  diffSmoothCache.set(s.power,{width:smoothingOct,power});return {...s,power};
+}
+function currentDifferences(a=slots.A,b=slots.B){return $('freqMode').value==='standard'?spectralDifferences(a,b,standard,band):displayDifferences(smoothedDisplaySource(a),smoothedDisplaySource(b),currentEdges());}
+function diffSources(){
+  const a=visibleSource('A'),b=visibleSource('B');
+  const live=!!playing&&a!==slots.A&&b!==slots.B&&a?.at===b?.at;
+  return {a:live?a:slots.A,b:live?b:slots.B,live};
+}
 const visualState={frames:{},busy:false,last:0,serial:0,worker:null,pending:null,failed:false,smoothed:{}};
 function visualFFT(channels){
   if(!visualState.worker){const url=URL.createObjectURL(new Blob(['('+spectrumWorker.toString()+')()'],{type:'text/javascript'}));visualState.worker=new Worker(url);URL.revokeObjectURL(url);
@@ -52,6 +68,6 @@ function drawMiniWave(){
   if(c.width!==Math.round(w*dpr)||c.height!==Math.round(h*dpr)){c.width=Math.round(w*dpr);c.height=Math.round(h*dpr);}const g=c.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,w,h);const [lo,hi]=limits(),span=Math.max(.001,hi-lo);
   for(const k of ['A','B']){const s=slots[k];if(!s)continue;g.strokeStyle=colors[k];g.globalAlpha=playing&&playing!==k?.35:.85;g.beginPath();for(let px=0;px<w;px++){const sec=lo+px/w*span+(k==='B'?offset:0),j=Math.max(0,Math.min(1599,Math.floor(sec/s.buffer.duration*1600)));let min=1,max=-1;for(const ch of s.wave){min=Math.min(min,ch.min[j]);max=Math.max(max,ch.max[j]);}g.moveTo(px,h/2-max*h*.44);g.lineTo(px,h/2-min*h*.44);}g.stroke();}g.globalAlpha=1;const px=Math.max(0,Math.min(w,(position()-lo)/span*w));g.strokeStyle='#fff';g.shadowColor='#00dcff';g.shadowBlur=7;g.beginPath();g.moveTo(px,0);g.lineTo(px,h);g.stroke();g.shadowBlur=0;$('miniTime').textContent=time(Math.max(0,position()-lo))+' / '+time(Math.max(0,hi-lo));
 }
-function visualTick(now){requestAnimationFrame(visualTick);if(document.hidden||!$('miniWave'))return;if(now-visualState.last>=100){visualState.last=now;if((activePage==='compare'||fullGraph?.id==='spectrum')&&playing)void sampleVisual();}
-  if(playing){if(activePage==='compare'||fullGraph?.id==='spectrum')drawReactiveGraph();if(fullGraph?.id==='wave')waveGraph();drawMiniWave();}
+function visualTick(now){requestAnimationFrame(visualTick);if(document.hidden||!$('miniWave')||now-visualState.last<100)return;visualState.last=now;
+  if(playing){if(['compare','diff'].includes(activePage)||['spectrum','diffChart'].includes(fullGraph?.id))void sampleVisual();if(activePage==='compare'||fullGraph?.id==='spectrum')drawReactiveGraph();if(activePage==='diff'||fullGraph?.id==='diffChart')drawDiff();if(fullGraph?.id==='wave')waveGraph();drawMiniWave();}
 }
