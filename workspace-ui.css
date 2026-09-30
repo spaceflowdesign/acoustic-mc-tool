@@ -38,3 +38,7 @@ dialog{color:#eafaff;background:#06111a;border:1px solid #1d6078;border-radius:1
 #graphDialog.listen-fullscreen #miniWave,#graphDialog.listen-fullscreen #visualStatus{display:none}
 #graphDialog.listen-fullscreen #miniStrip .mini-info{font-size:16px;line-height:24px;min-height:24px}
 #graphDialog.listen-fullscreen #miniStrip #seek{height:32px;min-height:32px}
+/* Video is local to LISTEN; audio-only slots keep the prior waveform layout. */
+#listenVideoPanel{margin:6px 0;border:1px solid #28768e;border-radius:12px;padding:6px;background:#030a10}
+#listenVideo{display:block;width:100%;max-height:32dvh;object-fit:contain;background:#000;visibility:hidden}
+#videoSource{font-size:11px;overflow-wrap:anywhere;margin-bottom:4px}#videoStatus{font-size:10px;color:#9cbbc9;line-height:1.4;margin:4px 0}#retryVideo{min-height:44px}
