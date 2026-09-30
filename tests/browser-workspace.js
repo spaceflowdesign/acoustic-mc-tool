@@ -6,7 +6,7 @@ workspaceButton.onclick=async()=>{
   workspaceButton.disabled=true;
   const confirmBefore=window.confirm,memoBefore=$('memo').value;
   try{
-    pause(true);window.confirm=()=>true;const original=wav();
+    pause(true);changePage('compare');$('freqMode').value='standard';window.confirm=()=>true;const original=wav();
     for(const k of ['A','B']){
       const data=new DataTransfer();data.items.add(new File([original],k+'.wav',{type:'audio/wav'}));$('file'+k).files=data.files;
       await $('file'+k).onchange({target:$('file'+k)});
@@ -27,6 +27,7 @@ workspaceButton.onclick=async()=>{
     $('prevPage').click();$('prevPage').click();await play('B');
     assertTest(playing==='B'&&offset===saved.offset&&slots.A===saved.A&&slots.B===saved.B&&slots.A.env===saved.env&&slots.B.power===saved.power&&$('memo').value===saved.memo,'page switching preserves A/B playback, analysis, offset and memo');
     pause();assertTest(location.href===saved.href&&history.length===saved.history,'internal switching does not navigate or add browser history');
+    assertTest(matchMedia('(orientation: landscape)').matches,'run fullscreen regression with landscape viewport');
     for(const id of ['spectrum','wave','diffChart','referenceChart','liveChart']){
       const box=$(id).parentElement,parent=box.parentElement;expandGraph(id,id);await delay(30);
       assertTest($('graphDialog').open&&box.parentElement===$('graphHost')&&$(id).getBoundingClientRect().height>100,'fullscreen graph visible: '+id);
@@ -34,8 +35,7 @@ workspaceButton.onclick=async()=>{
       $('graphDialog').querySelector('[data-close]').click();await closed;
       assertTest(!fullGraph&&box.parentElement===parent&&!document.body.classList.contains('modal-open'),'fullscreen close restores same canvas: '+id);
     }
-    document.querySelector('[data-graph=wave]').click();assertTest(!$('wave').parentElement.hidden&&$('spectrum').parentElement.hidden,'waveform/frequency are alternate overlays, not stacked');
-    document.querySelector('[data-graph=spectrum]').click();
+    assertTest($('wave').parentElement.hidden&&!$('spectrum').parentElement.hidden&&$('miniWave').getBoundingClientRect().height<60,'approved main graph plus small waveform; original large waveform retained in menu');
     showHelp('解析');assertTest($('helpDialog').open&&$('helpDialog').textContent.length>100,'original analysis explanation retained in help');$('helpDialog').close();await delay(30);
     $('openLive').click();assertTest(activePage==='live','AIR REC auxiliary page retained');$('leaveLive').click();assertTest(activePage==='compare','AIR REC return restores page');
     log('WORKSPACE TESTS COMPLETE');

@@ -34,6 +34,8 @@ async function testOutputRecovery(){
     window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));
     assertTest(!playing&&cursor===at&&pcmStore.db===saved.db,'BFCache page round-trip preserves assets and stays paused');
     await play('A');assertTest(playing==='A','explicit PLAY works after simulated BFCache return');
+    await delay(180);await sampleVisual();
+    assertTest(visualState.frames.A?.asset===slots.A.asset&&visualState.frames.B?.asset===slots.B.asset,'reactive graph resumes after output replacement without losing A/B');
     pause();log('OUTPUT RECOVERY TESTS COMPLETE');
   }finally{
     if(hiddenDescriptor)Object.defineProperty(document,'hidden',hiddenDescriptor);else delete document.hidden;

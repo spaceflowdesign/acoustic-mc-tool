@@ -47,7 +47,7 @@ gainTests.onclick=async()=>{
     assertTest(!gainEnabled&&gainResult.levelA===originals[0]&&gainResult.levelB===originals[1]&&$('gainLevels').textContent.includes('OFF'),'OFF preserves original levels in explanation UI');
     $('helpDialog').querySelector('.about-link').click();
     assertTest($('aboutDialog').open&&['GAIN MATCH','AUTO SYNC','MANUAL SYNC','DIFF FOCUS','FILE比較','AIR REC'].every(t=>$('aboutDialog').textContent.includes(t)),'independent ABOUT explains all six topics');
-    assertTest(workspacePages.join(',')==='compare,diff,history','ABOUT is not mixed into main page sequence');
+    assertTest(workspacePages.join(',')==='listen,compare,diff,history','ABOUT is not mixed into main page sequence');
     const closed=new Promise(r=>$('aboutDialog').addEventListener('close',r,{once:true}));$('aboutDialog').close();await closed;
     assertTest($('helpDialog').open,'ABOUT close returns to short help');$('helpDialog').close();
     await loadBlob('B',quiet,'export-reopened.wav');assertTest(gainResult.mode==='air'&&slots.A.asset===slots.B.asset&&slots.A.inputKind==='air'&&slots.B.inputKind==='file','mixed input uses AIR; identical data shares asset without sharing provenance');

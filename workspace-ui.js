@@ -46,7 +46,7 @@ function initWorkspace(){
       'AUTO/MANUAL SYNCや音源を変更したら、現在の共通区間で補正量を更新します。有効音がない場合や共通区間が400 ms未満なら補正せずOFFにします。GAIN MATCHの変更は再生だけに作用し、同期位置・解析グラフ・メモ・保存音声を変更しません。読み込み時にWorkerでK-filter計算を追加しますが、全体の再デコードはせず、保持する追加energyは13分で音源あたり約0.6 MiBです。'],
     ['AUTO SYNC','音量変化の包絡の相関から開始位置を推定します。位相や波形の完全一致を保証する機能ではありません。無音・一定音・繰り返し・異なる音源などでは確定できない場合があります。推定条件と結果はSYNC画面に表示します。耳と波形で確認してください。'],
     ['MANUAL SYNC','Bの読出し位置からAの読出し位置を引いた値をmsで指定します。正の値ではBを先へ読み出します。±1/±10 msボタンで微調整できます。共通再生区間がなくなる設定は適用しません。同期変更後はGAIN MATCHも再計算します。'],
-    ['DIFF FOCUS','原音の平均スペクトルのB−A差を1/3オクターブ帯域で表示し、絶対差が大きい最大3帯域を強調します。音源全体から分散抽出した最大64箇所の解析で、GAIN MATCH補正後でも同期後共通区間だけの再解析でもありません。片側でも−100 dBFS以下、または両側で扱えない高域は除外します。音の優劣や原因を自動判定しません。']
+    ['DIFF FOCUS','原音の平均スペクトルのB−A差を、STANDARDでは1/3オクターブ、MUSICではDefault / Customの6帯域で表示し、絶対差が大きい最大3帯域を強調します。音源全体から分散抽出した最大64箇所の解析で、GAIN MATCH補正後でも同期後共通区間だけの再解析でもありません。片側でも−100 dBFS以下、または両側で扱えない高域は除外します。音の優劣や原因を自動判定しません。']
   ];
   for(const [title,...paragraphs]of sections){const section=element('section');const h=document.createElement('h3');h.textContent=title;section.append(h);for(const text of paragraphs){const p=document.createElement('p');p.textContent=text;section.append(p)}about.querySelector('.dialog-body').append(section)}
   const sourceDialog=addDialog('sourceDialog','A / B SOURCES');sourceDialog.querySelector('.dialog-body').append(filesCard);
