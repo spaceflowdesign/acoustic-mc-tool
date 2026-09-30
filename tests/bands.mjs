@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
+const root=new URL('../',import.meta.url),scope=vm.createContext({self:{},Float64Array,Math});
+vm.runInContext(readFileSync(new URL('band-display.js',root),'utf8'),scope);
+assert.deepEqual(JSON.parse(JSON.stringify(scope.parseBandSettings(null))),{edges:[20,60,250,500,2000,8000,20000],custom:false});
+for(const text of ['bad','null','{}','{"edges":[20,20,250,500,2000,8000,20000]}'])assert.equal(scope.parseBandSettings(text).custom,false);
+assert.equal(scope.validEdges([20,61,251,501,2001,8001,20000]),true);
+for(const edges of [[20,60,250,500,2000,8000],[19,60,250,500,2000,8000,20000],[20,60,250,500,2000,NaN,20000],[20,250,60,500,2000,8000,20000]])assert.equal(scope.validEdges(edges),false);
+const power=new Float64Array(4097).fill(.01),a={power,buffer:{sampleRate:48000},fftSize:8192},b={...a,power:power.map(x=>x*4)};
+for(const row of scope.displayDifferences(a,b,[20,60,250,500,2000,8000,20000]))assert.ok(Math.abs(row.delta-6.020599913)<1e-7);
+assert.equal(scope.rangeLevel(power,16000,8192,8000,20000),null);
+assert.equal(scope.rangeLevel(power,48000,8192,20,20.01),null);
+assert.equal(scope.displayDifferences(null,b,[20,60]).length,0);
+console.log('PASS band defaults, validation, corrupt persistence, power-domain differences, resolution and Nyquist');
+vm.runInContext('spectrumWorker()',scope);
+function fft(channels){let result;scope.self.postMessage=r=>result=r;scope.self.onmessage({data:{id:1,channels}});return result.power;}
+const n=8192,tone=Float32Array.from({length:n},(_,i)=>.25*Math.sin(2*Math.PI*128*i/n)),tone2=Float32Array.from({length:n},(_,i)=>.5*Math.sin(2*Math.PI*512*i/n));
+const p=fft([tone]),q=fft([tone2]),stereo=fft([tone,tone2]);
+assert.ok(Math.abs(p[128]-.25**2)<1e-7);assert.ok(Math.abs(q[512]-.5**2)<1e-7);assert.ok(q[128]<1e-12);assert.ok(Math.abs(stereo[128]-p[128]/2)<1e-10);
+assert.ok(fft([new Float32Array(n)]).every(x=>x===0));
+console.log('PASS reactive FFT follows different actual windows, Hann amplitude, channel power averaging and silence');
+const ui=readFileSync(new URL('fixed-ui.js',root),'utf8');assert.ok(!/pushState|replaceState|touchmove|touchstart|pointermove/.test(ui));
+assert.ok(ui.includes("matchMedia('(orientation: landscape)')"));assert.ok(ui.includes('controlPrev')&&ui.includes('controlNext'));
+console.log('PASS landscape guard, explicit control paging, no history or swipe handlers');

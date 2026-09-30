@@ -7,12 +7,14 @@ function beginStream(length,sr,channels) {
   stream={length,sr,channels,size,step,next:0,
     wave:Array.from({length:channels},()=>({min:new Float32Array(1600).fill(1),max:new Float32Array(1600).fill(-1)})),
     energy:new Float64Array(Math.ceil(length/step)),
+    kState:createKState(sr,channels),kEnergy:new Float64Array(Math.ceil(length/step)),
     frames:Array.from({length:count},(_,f)=>({start:Math.floor(f*Math.max(0,length-size)/Math.max(1,count-1)),data:Array.from({length:channels},()=>new Float32Array(Math.min(length,size)))}))};
 }
 function feedStream(at,channels) {
   const s=stream;if(!s||at!==s.next||channels.length!==s.channels)throw Error('解析チャンクの順序が不正です。');
   const end=at+channels[0].length;if(end>s.length)throw Error('解析範囲が不正です。');
   channels.forEach((data,c)=>{
+    if(s.kState)kEnergyFeed(s.kState,data,c,at,s.step,s.kEnergy);
     for(let bin=0;bin<1600;bin++){
       const first=Math.floor(bin*s.length/1600),last=Math.max(first+1,Math.floor((bin+1)*s.length/1600));
       for(let j=Math.max(at,first);j<Math.min(end,last);j++){
@@ -35,5 +37,6 @@ function finishStream() {
     for(let k=0;k<power.length;k++)power[k]+=(re[k]*re[k]+im[k]*im[k])/Math.max(1,winSum*winSum)*(k&&k<s.size/2?4:1)/(s.frames.length*s.channels);
   }
   const env=Float32Array.from(s.energy,(v,i)=>Math.sqrt(v/(Math.min(s.step,s.length-i*s.step)*s.channels)));
-  const result={power,wave:s.wave,env,envRate:s.sr/s.step,fftSize:s.size};stream=null;return result;
+  const kEnergy=s.kState?Float64Array.from(s.kEnergy,(v,i)=>v/Math.min(s.step,s.length-i*s.step)):null;
+  const result={power,wave:s.wave,env,envRate:s.sr/s.step,fftSize:s.size,kEnergy};stream=null;return result;
 }

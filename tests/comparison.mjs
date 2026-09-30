@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
+const root=new URL('../',import.meta.url),scope=vm.createContext({});
+vm.runInContext(readFileSync(new URL('comparison-math.js',root),'utf8'),scope);
+const source=(power,sr=48000)=>({power,buffer:{sampleRate:sr},fftSize:8192});
+const A=source(-40),B=source(-37.2),band=power=>power;
+assert.ok(Math.abs(scope.spectralDifferences(A,B,[100],band)[0].delta-2.8)<1e-10);
+assert.ok(Math.abs(scope.spectralDifferences(B,A,[100],band)[0].delta+2.8)<1e-10);
+assert.equal(scope.spectralDifferences(A,A,[100],band)[0].delta,0);
+for(const invalid of [-120,-100,NaN,Infinity])assert.equal(scope.spectralDifferences(A,source(invalid),[100],band).length,0);
+assert.equal(scope.spectralDifferences(null,B,[100],band).length,0);
+assert.equal(scope.spectralDifferences(A,source(-40,16000),[10000],band).length,0);
+const ui=readFileSync(new URL('workspace-ui.js',root),'utf8');
+assert.ok(!/pushState|replaceState|touchmove|touchstart|pointermove|location\s*=/.test(ui));
+for(const id of ['wave','spectrum','diffChart','referenceChart','liveChart'])assert.ok(ui.includes("'"+id+"'"));
+console.log('PASS DIFF direction, equality, silence/nonfinite floor, missing slot and shared Nyquist');
+console.log('PASS explicit DOM page switching without history writes or swipe listeners; all graphs retained');

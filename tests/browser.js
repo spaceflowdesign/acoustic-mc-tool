@@ -66,6 +66,7 @@ testButton.onclick=async()=>{
     stopRecord();for(let attempt=0;attempt<100&&(rec||busy.B||!slots.B);attempt++)await delay(100);
     oscillator.stop();navigator.mediaDevices.getUserMedia=getUserMedia;
     assertTest(slots.B?.name.startsWith('AIR_REC_'),'AIR REC STOP loads recording through same safe path');
+    assertTest(slots.B.inputKind==='air','actual MediaRecorder stop marks AIR REC provenance');
     let download=null;const anchorClick=HTMLAnchorElement.prototype.click;
     HTMLAnchorElement.prototype.click=function(){download={name:this.download,url:this.href}};
     $('downloadB').onclick();HTMLAnchorElement.prototype.click=anchorClick;
@@ -81,7 +82,8 @@ mp4Button.onclick=async()=>{
     // Tests only: fixture is injected by the local harness; production CSP and
     // production code remain completely offline.
     const blob=await(await fetch('/fixture.mp4')).blob();
-    await loadBlob('A',blob,'13min.mp4');assertTest(slots.A?.name==='13min.mp4'&&slots.A.buffer.duration>779,'13 min MP4 native decode, analysis and storage');
+    const startLongLoad=performance.now();await loadBlob('A',blob,'13min.mp4');assertTest(slots.A?.name==='13min.mp4'&&slots.A.buffer.duration>779,'13 min MP4 native decode, analysis and storage');
+    log('INFO long MP4 decode + all analysis + IDB: '+((performance.now()-startLongLoad)/1000).toFixed(2)+' s');
     const id=slots.A.asset.id;await loadBlob('B',new Blob([blob]),'13min.mp4');
     assertTest(slots.B.asset.id===id,'13 min MP4 same-file A/B without second decode');
     cursor=390;await play('A');await delay(300);await play('B');assertTest(playing==='B'&&position()>390,'13 min MP4 seek and A/B playback');pause(true);
@@ -91,6 +93,9 @@ mp4Button.onclick=async()=>{
     assertTest(!(slots.A.buffer instanceof AudioBuffer)&&!(slots.B.buffer instanceof AudioBuffer),'neither long slot holds complete PCM in JS');
     cursor=779;await play('B');await delay(200);assertTest(playing==='B','long distinct MP4 near-end seek');pause(true);
     assertTest(pcmStore.cache.size<=8,'long-file cache stays bounded');
+    assertTest(slots.A.kEnergy.byteLength<700000&&slots.B.kEnergy.byteLength<700000,'K-energy retained data below 0.7 MB per 13-minute source');
+    assertTest(gainResult.valid&&gainResult.mode==='file','long MP4 common-interval FILE GAIN MATCH available');
+    $('gainToggle').click();assertTest(gainEnabled&&gainResult.gains.A<=1&&gainResult.gains.B<=1,'long MP4 GAIN MATCH never amplifies');$('gainToggle').click();
     log('13 MIN MP4 TEST COMPLETE');
   }catch(error){log('FAIL '+error.stack)}finally{mp4Button.disabled=false}
 };
