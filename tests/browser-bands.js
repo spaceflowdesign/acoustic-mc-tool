@@ -65,7 +65,7 @@ const pageFullscreenTests=makeAction('RUN PAGE FULLSCREEN TESTS',async()=>{
 const allSuites=makeAction('RUN ALL LANDSCAPE TESTS',async()=>{
   allSuites.disabled=true;
   try{if(!matchMedia('(orientation: landscape)').matches)throw Error('Landscape viewport required');
-    for(const button of [testButton,mp4Button,recoveryButton,workspaceButton,gainTests,bandsTests,pageFullscreenTests,videoTests,extrasTests]){await button.onclick();if(/(^|\n)FAIL /.test(out.textContent))throw Error('Stop: suite failed');}
+    for(const button of [testButton,mp4Button,recoveryButton,workspaceButton,gainTests,bandsTests,pageFullscreenTests,videoTests,remuxProbeTests,extrasTests]){await button.onclick();if(/(^|\n)FAIL /.test(out.textContent))throw Error('Stop: suite failed');}
     log('ALL LANDSCAPE TESTS COMPLETE: '+out.textContent.split('\n').filter(line=>line.startsWith('PASS ')).length+' checks');
   }catch(error){log('FAIL '+error.message);}finally{allSuites.disabled=false;}
 });testBox.append(allSuites);

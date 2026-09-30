@@ -255,3 +255,78 @@ New tests: five parser groups for order independence, version-1 headers, ambiguo
 Publication: PR #8 was still open/unmerged when work resumed. The new branch continues its exact commit, and the new PR targets main including all PR #8 work plus this continuation. PR #8 is not closed or mutated automatically. Prefer reviewing the new combined PR rather than merging overlapping PRs independently. Device Photos/Take Video selection and physical fullscreen sound equivalence remain unverified; please supply the failing movie or local diagnostic log to close that verification gap.
 
 Continuation validation: all seven Node suites PASS (9/16/11/2/3/15/1 groups/scenarios); full browser landscape aggregate **233 checks PASS** (prior 227 + 6 alternate-track checks); `git diff --check` PASS. The entire prior suite was run again on the resumed code, including all ④–⑫ checks, not just the new parser. The unsupported disabled track in the fixture is synthetic; these results must not be described as a physical iPhone recording test.
+
+## Single AAC QuickTime remux correction — device log follow-up
+
+Base: merged PR #9, main `2ed48c65d2cd49325d5b72fce4e240e780a91315`. The user's new physical-device evidence supersedes the earlier unknown-picker/alternate-track hypotheses **for this incident**: the File arrives, MOV has avc1 + one enabled mp4a track (ID 2), nonfragmented, and `decodeAudioData` fails with EncodingError after audio-track-remux. Alternate-track handling is retained but is NOT this fix.
+
+### Confirmed code defect vs. remaining device verification
+
+The former remux changed ftyp to M4A/isom/mp42 but copied the QuickTime stsd verbatim. Our generated single-AAC MOV reproduces the structural defect: SoundDescription **version 1**, compression ID -2, packet fields, and **esds nested inside wave** survive into the supposedly ISO output. Chromium accepted that mixed dialect, so a successful desktop decode did not detect the defect. Apple's [sound sample descriptions](https://developer.apple.com/documentation/quicktime-file-format/sound_sample_descriptions) and [FFmpeg's MOV/MP4 writer](https://ffmpeg.org/doxygen/8.1/movenc_8c_source.html) distinguish these layouts. This is a confirmed remux incompatibility risk, **not proof of the precise CoreAudio rejection in the user's unavailable file**. We have the diagnostic log, not the failing movie or an iPhone test runner. Do not report the physical issue resolved until re-tested.
+
+### Container audit / changes
+
+| Component | Handling |
+| --- | --- |
+| ftyp / moov / mdat | M4A + M4A/isom/mp42 brands; audio-only rebuilt moov; referenced audio Blob slices only in mdat |
+| stsd / AAC config | Convert QuickTime mp4a v0/v1/v2 to ISO v0 entry with direct esds; remove QT wave wrapper/packet fields; parse bounded variable-length ES/DecoderConfig/AudioSpecificConfig descriptors; retain esds/ASC bytes exactly, including extensions |
+| mvhd / tkhd / mdhd | Validate version, nonzero timescales and safe durations; movie duration now follows selected audio track, not removed video; preserve audio track/media timescales and durations |
+| trak / mdia / minf | Remove dangling track references and alternate group in extraction; ISO soun handler and self-contained dref; remove QT minf handler |
+| stbl / stts / stsc / stsz | Keep compressed sample ordering/timing; audit stts sample count against stsz, time sum against mdhd, stsc first-chunk/order/sample-description IDs and sample totals |
+| stco / co64 / sample offsets | Verify original chunks lie within source mdat; calculate all new offsets AFTER rebuilding variable-size headers; support both offset widths; reject overflow |
+| edts / elst | Preserve AAC priming and leading-empty edits; validate version/length/rate/timeline bounds and total track duration; unsupported playback-rate edits fail explicitly, never silently stripped |
+
+Additional local input diagnostics include source sample-entry version, original esds location, ASC object type/rate/channel configuration, channel count/sample rate, chunk/sample counts, audio bytes, timescales/durations, edit-list presence and first/end offsets. Build ID: `2026-09-30-iso-aac-remux-v3`. A malformed/unsupported header now produces a specific pre-decode error instead of forwarding an invalid remux. AAC object type indication other than MPEG-4 Audio (0x40) is explicitly unsupported by this normalizer; underlying browser AAC profile support still applies. ALAC remains on its existing sample-entry path.
+
+The original compressed movie remains unchanged for LISTEN and SAVE. No video ArrayBuffer, transcoding, full-PCM duplicate, additional AudioContext, playback node, gain/sync change or UI change is introduced. Header work remains bounded by the existing 32 MiB moov cap. The existing transient one-file full PCM decode, serialized imports, IndexedDB chunks, shared same-file A/B assets and eight-chunk playback cache remain. This is not a claim that arbitrarily long recordings fit every iPhone's memory.
+
+### Alternative PCM route considered
+
+An original Blob URL could feed HTMLMediaElement → MediaElementAudioSourceNode → AudioWorklet → bounded PCM storage without copying the whole compressed movie. However, [Web Audio](https://www.w3.org/TR/webaudio-1.0/#MediaElementAudioSourceNode) routes that source through a realtime AudioContext, not the existing offline file decode. Capturing a complete 13-minute file would depend on realtime playback/foreground/user activation, interruption handling, resampling and a new complete-recording timeline. Playback speedup/seek capture cannot safely guarantee all original samples or existing sync/analysis semantics. This would be a material behavior change, not a transparent fallback, and is **not implemented**. There is also no full-original-MOV decode retry, which would reintroduce a full-video input buffer.
+
+### Regression evidence and reproduction
+
+- All seven mandatory Node suites PASS: 9/16/11/2/3/**19**/1 groups. Four new parser groups cover v0/v1/v2 + stco/co64, exact ASC and compressed payload, priming/empty edits, movie duration, malformed configs and inconsistent tables/timescales. Earlier artificial parser fixtures now include actual sound headers, ASC and timing tables instead of structurally incomplete stubs.
+- Browser skill, desktop Chromium, full landscape aggregate: **237 checks PASS**. Four new assertions require the supplied camera fixture to match avc1 + **single enabled AAC ID 2**, QT v1/wave input, ISO v0/direct esds output, byte-exact descriptors and relocated offsets. Existing native decode verifies exact PCM length/samples, A/B commits, same-file sharing, LISTEN transport/video sync and all previous regression cases. This generated MOV is NOT represented as an iPhone-produced file.
+- Independent FFmpeg 7.1 decode of original MOV and normalized M4A produced identical float-PCM SHA256: `f3124547fc53068ab8c60155641f7980b521a033a074f5246ba3d6ae95d59598`. No decoder warnings/errors. FFmpeg tolerance is additional evidence, not Safari certification.
+- Optional `node tests/remux-ffmpeg.mjs /absolute/path/to/ffmpeg` checks that equality automatically using the existing `../fixtures/camera.mov`. On this restricted Windows host Node child-process launch returned EPERM, so the same check was run with the export mode below and FFmpeg directly; do not count the blocked launcher as a passing test.
+
+```powershell
+node tests/remux-ffmpeg.mjs --export ../fixtures/camera.mov ../fixtures/normalized-camera.m4a
+ffmpeg -v error -i ../fixtures/camera.mov -map 0:a:0 -c:a pcm_f32le -f hash -hash sha256 -
+ffmpeg -v error -i ../fixtures/normalized-camera.m4a -map 0:a:0 -c:a pcm_f32le -f hash -hash sha256 -
+```
+
+Device follow-up: load the SAME failing MOV into A then B with this build via Photos/Take Video/Files, inspect remux検証 diagnostics, verify both complete, LISTEN video/audio playback, SEEK, A/B, AUTO/MANUAL SYNC and background return. If it still fails, retain the error plus the new remux diagnostics and share a privacy-safe failing movie/iOS version. Physical Safari acceptance and the exact original file's ASC/edit-list details remain unverified.
+
+## iOS 18 follow-up: physical failure persists — NOT RESOLVED
+
+**Latest evidence:** user retested on iPhone / iOS 18.7 / Safari 18.7.7 and reports the same `EncodingError: Decoding failed` at `動画内音声のデコード`, path `audio-track-remux`. File delivery, video/quicktime, avc1 video, one enabled mp4a audio track ID 2 and nonfragmented structure are confirmed. PR #10's normalization did **not** resolve the reported case. Its earlier desktop success is not a Safari success criterion. The exact failing MOV, generated remux and full previous `remux検証` record are still unavailable; requested from the user. We cannot identify the actual CoreAudio rejection from the summary alone and must not claim root cause or completion.
+
+### Implemented diagnostic continuation (build `2026-09-30-remux-audit-v4`)
+
+The remux bytes themselves are unchanged from PR #10. Instead of trying another speculative container variant, `auditRemuxBlob` reads the **finished Blob** back before decode, separately from builder offset calculations. It reads top-level headers, bounded moov and three <=64-byte packet probes, never a full video or another full audio input buffer. It checks the serialized chunk offsets, every chunk's sample sizes/count, correspondence with the original chunk sizes, contiguous mdat coverage through the final byte, stts/mdhd totals, single audio track/handler and self-contained data reference. Missing smhd is reported as a warning (not silently called valid). Source packet probes at first/middle/last chunks are byte-compared; these are explicitly probes, not a claim of exhaustive payload comparison. The prior exact decoded PCM tests remain separate.
+
+`入力診断` now records:
+
+- `remux Blob読戻し監査`: actual Blob size/MIME, ftyp major/minor/compatible brands, codec, channel count/sample rate, track duration in seconds, movie/media timescales and durations, sample count and stts run durations, first/last **sample** start offsets and last sample size, mdat atom/payload start and exclusive end, stco/co64 type/count/values, source chunk positions, byte probes, AAC object type and exact ASC hex, track ID/enabled/group/data-reference, edit-list fields, top-level atom ranges and moov atom tree. moov tree ranges are relative to the beginning of moov; chunk/sample offsets are absolute in the finished Blob.
+- `decodeAudioData直前`: the actual ArrayBuffer byteLength immediately before the native call, actual Blob size/MIME, path, OfflineAudioContext sample rate/state.
+- Offset logs include all entries up to 128; larger tables show the first 64 and last 64 with explicit `omitted` count. Every entry is still audited. stts/elst display is capped at 32 entries with total counts; ASC hex caps at 4096 bytes with a truncation flag. These log bounds prevent a large sample table from overwhelming mobile memory. The complete tables remain in the downloadable remux file.
+
+### Independent audio-element probe
+
+Only after a failed remux decode, retain **one compressed audio Blob**, not PCM or another copy of the full video. Source dialog → **入力診断（端末内のみ）** adds:
+
+1. **抽出音声をテスト再生（診断）**: explicitly stops A/B playback (retains its position/data) and calls a separate HTMLAudioElement.play() directly from the tap. No AudioContext or MediaElementAudioSourceNode is created or attached. This is diagnostic playback, not an alternate importer. It records metadata, loadeddata/canplay, play promise, playing, actual time advancement, media error and timeout. It stops after >=0.1 seconds of progress or a 10-second bound. Merely `canPlayType`, metadata or a resolved promise is NOT called playback success.
+2. **抽出M4Aを保存（診断）**: save the exact Blob passed to decodeAudioData for inspection on an actual Mac/iPhone. Contains the original audio; nothing is uploaded automatically. Saving is user-initiated and distinct from existing SAVE AUDIO.
+3. **診断音声を解放**: release the failed Blob. Starting the next import also releases it; closing the diagnostic/dialog or going to background releases native playback and its object URL. Successful imports retain no diagnostic Blob. Original A/B remain unchanged after failure.
+
+`playback-progress` with a prior EncodingError supports investigating the Web Audio decode path, but does not certify all packets or prove a specific Safari defect. Media-element failure also leaves codec support/resource limits as candidates; it **does not uniquely prove a corrupt container**. Gesture denial and timeout are logged as inconclusive. This distinction follows the [HTML media error model](https://html.spec.whatwg.org/multipage/media.html). The implementation does not require WebCodecs: [WebKit's Safari 26 announcement](https://webkit.org/blog/17333/webkit-features-in-safari-26-0/) places AudioDecoder/AudioEncoder support after the user's Safari 18 environment.
+
+### Tests and outstanding blocker
+
+Node parser tests add completed-Blob log assertions, first/last sample distinction, corrupted offset/size/timing/data-reference and packet-probe rejection, and bounded reads. Browser `RUN REMUX DIAGNOSTIC TESTS` injects EncodingError at the native decoder *after* real single-track MOV extraction, asserts pre-decode byte counts and old-slot preservation, then runs the same Blob through a real HTMLAudioElement; also covers policy denial, close cleanup and next-import release. The injected exception tests recovery/diagnostics and is **not a reproduction of Safari's underlying failure**. Existing four-screen/gain/sync/repeat/fullscreen/photo/recovery tests are retained.
+
+The physical bug remains open. Next required evidence: using this build, fail the same MOV import, open input diagnostics, tap **抽出音声をテスト再生（診断）**, and share the complete log plus (if privacy permits) the saved diagnostic M4A or a short MOV that also fails. Do not repeat importing A and B before saving the first diagnostic: the next import intentionally replaces/releases it. Do not mark the issue resolved until that actual device case imports successfully.
+
+Diagnostic checkpoint: mandatory Node suites **7/7 PASS** (9/16/11/2/3/22/1 groups); full desktop browser aggregate **249 checks PASS** (237 retained + 12 diagnostic checks); `git diff --check` PASS. Independent FFmpeg float-PCM hash remains `f3124547fc53068ab8c60155641f7980b521a033a074f5246ba3d6ae95d59598`. Actual Safari 18 acceptance remains **FAILED in the latest user report**, not cleared by these tests. PR #10 remained open/unmerged at this continuation; the new branch continues its exact commit and includes it when targeting main.

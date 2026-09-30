@@ -81,7 +81,7 @@ async function releaseSlot(s) {
   if (s?.url) URL.revokeObjectURL(s.url);
   if (s && !Object.values(slots).some(other => other?.asset === s.asset)) await pcmStore.remove(s.asset.id);
 }
-async function prepareAsset(blob) {
+async function prepareAsset(blob,diagnostic={}) {
   await pcmStore.open();
   pcmStore.cache.clear();
   const id=++pcmStore.serial;
@@ -92,7 +92,11 @@ async function prepareAsset(blob) {
     // the native decoder actually settles; otherwise a retry overlaps decoders.
     decodePending=true;
     const decodeNotice=setTimeout(()=>say('音声のデコードに時間がかかっています。重複処理を防ぐため完了を待っています。'),45000);
-    try { buffer=await new (window.OfflineAudioContext||window.webkitOfflineAudioContext)(1,1,ctx.sampleRate).decodeAudioData(bytes); }
+    try {
+      const decoder=new (window.OfflineAudioContext||window.webkitOfflineAudioContext)(1,1,ctx.sampleRate);
+      if(typeof recordInput==='function')recordInput(diagnostic.side||'DECODE','decodeAudioData直前',{path:diagnostic.path||'native',arrayBufferByteLength:bytes.byteLength,blobSize:blob.size,mimeType:blob.type,decoder:'OfflineAudioContext',decoderSampleRate:decoder.sampleRate,decoderState:decoder.state});
+      buffer=await decoder.decodeAudioData(bytes);
+    }
     finally { clearTimeout(decodeNotice); decodePending=false; bytes=null; }
     if(!buffer.length || buffer.duration<=0) throw Error('音声が空です。');
     const asset={id,length:buffer.length,duration:buffer.duration,sampleRate:buffer.sampleRate,numberOfChannels:buffer.numberOfChannels,chunkFrames:Math.round(buffer.sampleRate*2)};
