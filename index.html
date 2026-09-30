@@ -33,7 +33,7 @@ dialog{color:#eafaff;background:#06111a;border:1px solid #1d6078;border-radius:1
 .fixed-design{background:radial-gradient(ellipse at 20% 12%,#06283b 0,transparent 40%),#02060e;color:#eafbff}
 .fixed-design .wrap{max-width:700px;padding:10px max(10px,env(safe-area-inset-right)) 8px max(10px,env(safe-area-inset-left))}
 .fixed-design .top{gap:9px;margin-bottom:8px}.fixed-design .brand{flex:1;font-size:20px;letter-spacing:.01em;text-shadow:0 0 12px #1cb9e9}.fixed-design .brand small{font-size:8px;letter-spacing:.11em}.menu-button{padding:0;width:36px;color:#00dfff!important;background:none!important;font-size:24px}
-.fixed-design .workspace-nav{margin:0 0 10px;grid-template-columns:48px 1fr 48px}.fixed-design #pageTitle{text-align:center;font-size:27px;letter-spacing:.08em;margin:0;text-shadow:0 0 12px #29aeff}.fixed-design .pager{border-radius:50%;border:1px solid #b0c6ff;background:#060925;box-shadow:0 0 12px #5250f5;font-size:27px}
+.fixed-design .workspace-nav{margin:0 0 4px;grid-template-columns:28px 1fr 28px;min-height:28px}.fixed-design #pageTitle{text-align:center;font-size:14px;line-height:1.2;letter-spacing:.08em;margin:0;text-shadow:0 0 6px #29aeff}.fixed-design .pager{width:28px;height:28px;min-height:28px;padding:0;line-height:1;border-radius:50%;border:1px solid #b0c6ff;background:#060925;box-shadow:0 0 5px #5250f5;font-size:14px}
 .fixed-design #compareVisual{padding:0;border:0;background:transparent;box-shadow:none}.fixed-design #compareVisual:before,.fixed-design #compareVisual:after{display:none}
 .fixed-design #spectrum{height:clamp(260px,40dvh,430px)}.fixed-design #spectrum,.fixed-design #diffChart{border-radius:14px}.fixed-design #compareVisual .chartbox{padding:0;border:1px solid #58c9f0;border-radius:15px;overflow:hidden;box-shadow:0 0 16px #00cfff15}
 #miniStrip{margin:5px 0;background:#020c16;border:1px solid #38a6ca;border-radius:12px;padding:5px 10px 0;min-width:0}.mini-info{display:flex;justify-content:space-between;gap:6px;font-size:10px;line-height:14px}#visualStatus{font-size:8px;color:#9abcce;text-align:right}#miniWave{display:block;width:100%;height:32px}#miniStrip #seek{display:block;height:16px;min-height:16px;margin:0}
@@ -43,12 +43,15 @@ dialog{color:#eafaff;background:#06111a;border:1px solid #1d6078;border-radius:1
 #toolsDialog .dialog-body{display:grid;gap:10px}#customValues{display:grid;grid-template-columns:1fr 1fr;gap:5px 12px}#customValues input{width:100%}#bandError{color:#ffb0ba;font-size:12px}
 #controlRow{display:grid;grid-template-columns:44px 1fr 44px;gap:6px;padding:4px 8px;flex-shrink:0}#controlPages{min-width:0}.control-page{display:flex;gap:6px;align-items:stretch}.control-page>*{flex:1;min-width:0;max-width:100%;min-height:44px;padding:4px;font-size:11px}.control-page select{font-size:10px}#controlRow>button{padding:0;font-size:23px}
 #graphDialog .dialog-head{padding:3px 10px;height:44px;min-height:44px}#graphDialog .dialog-head h2{font-size:12px}#graphDialog .dialog-head button{min-height:40px;padding:4px 12px}#graphHost{padding:0 8px}#graphDialog #miniStrip{flex-shrink:0;margin:3px 8px;padding:2px 8px 0}#graphDialog #miniWave{height:23px}#graphDialog #miniStrip .mini-info{font-size:9px;line-height:12px}#graphDialog #miniStrip #seek{height:12px;min-height:12px}#graphDialog #miniStrip[hidden]{display:block!important}
-@media(max-width:380px){.fixed-design .brand{font-size:16px}.fixed-design #pageTitle{font-size:24px}.fixed-design .top{gap:5px}#mainControls>button{font-size:11px}}
+@media(max-width:380px){.fixed-design .brand{font-size:16px}.fixed-design .top{gap:5px}#mainControls>button{font-size:11px}}
 @media(orientation:portrait){#graphDialog[open]{display:none}}
 @media(prefers-reduced-motion:reduce){.fixed-design .pager{box-shadow:none}}
 .fixed-design #compareVisual .graph-tabs[hidden]{display:none!important}.fixed-design #spectrum{height:clamp(260px,36dvh,430px)}.smoothing-label{padding:0}.smoothing-label button{border:0;background:none;color:#eafbff;min-height:50px;text-align:left;padding:6px 9px;font-size:12px}.smoothing-label button small{font-size:10px}.mini-info{position:relative;padding-right:38px;min-height:16px}.inline-expand{position:absolute;right:-6px;top:-4px;width:36px;min-height:44px;padding:0;background:#031727b0;font-size:19px;border:0;z-index:1}#displayDialog #displayControls{margin-top:12px;grid-template-columns:1fr 1fr}#displayDialog #smoothing{width:100%}.fixed-design .brand{font-family:system-ui,sans-serif;font-weight:500}.fixed-design .gain-caption{display:none}
 .fixed-design .card:before,.fixed-design .card:after{display:none}.fixed-design [data-panel=diff] .card{padding:8px}.fixed-design [data-panel=diff] #diffChart{height:36dvh}
 #graphDialog .inline-expand{display:none}#graphDialog .mini-info{padding-right:0}.fixed-design .slotB b,.fixed-design .legendB{color:#ff43df}
+/* Page-header descriptions only; graph dimensions and control layout stay intact. */
+.fixed-design .listen-heading{font-size:10px;line-height:1.3;margin:3px 0}
+.fixed-design [data-panel=diff]>.card>.graph-scope{font-size:9px;line-height:1.3;margin:2px 0}
 
 /* END workspace-ui */
 </style></head><body><div class="wrap">
