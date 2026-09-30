@@ -14,6 +14,6 @@ createServer((req,res)=>{
     res.setHeader('Content-Type','video/mp4');createReadStream(path).pipe(res);return;
   }
   let html=readFileSync(new URL(req.url==='/baseline'?'Acoustic_MC_Tool_baseline_RC1.html':'index.html',root),'utf8');
-  if(req.url==='/tests')html=html.replace("connect-src 'none'","connect-src 'self'").replace('</script></body>',['browser.js','browser-recovery.js','browser-workspace.js','browser-gain.js','browser-bands.js','browser-video.js','browser-extras.js'].map(file=>readFileSync(new URL(file,import.meta.url),'utf8')).join('\n')+'</script></body>');
+  if(req.url==='/tests')html=html.replace("connect-src 'none'","connect-src 'self'").replace('</script></body>',['browser.js','browser-recovery.js','browser-workspace.js','browser-gain.js','browser-bands.js','alternate-fixture.js','browser-video.js','browser-extras.js'].map(file=>readFileSync(new URL(file,import.meta.url),'utf8')).join('\n')+'</script></body>');
   res.setHeader('Content-Type','text/html; charset=utf-8');res.end(html);
 }).listen(8765,'127.0.0.1',()=>console.log('http://127.0.0.1:8765/tests'));

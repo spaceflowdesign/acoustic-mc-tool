@@ -5,6 +5,13 @@ const videoTests=makeAction('RUN VIDEO INPUT TESTS',async()=>{
   try{
     pause(true);changePage('listen');selectedSide='A';window.confirm=()=>true;
     const response=await fetch('/camera.mov');if(!response.ok)throw Error('Generate camera.mov fixture first');const blob=await response.blob();
+    const alternate=await alternateMovieFixture(blob),selected=await inspectMediaInput(alternate,'IMG_SPATIAL.MOV');
+    assertTest(selected.selection==='enabled-alternate'&&selected.selectedTrackId===77&&selected.codec==='mp4a','TN3177 disabled spatial first selects enabled AAC default, not file order');
+    const refAudio=await inspectMediaInput(blob,'camera.mov'),checkDecoder=new OfflineAudioContext(2,1,48000),refPCM=await checkDecoder.decodeAudioData(await refAudio.audioBlob.arrayBuffer()),selectedPCM=await checkDecoder.decodeAudioData(await selected.audioBlob.arrayBuffer());
+    assertTest(refPCM.length===selectedPCM.length&&refPCM.getChannelData(0).every((v,i)=>v===selectedPCM.getChannelData(0)[i]),'alternate selection preserves default AAC samples and timeline exactly');
+    for(const side of ['A','B']){await loadBlob(side,alternate,'spatial-'+side+'.MOV');assertTest(slots[side]?.media.selectedTrackId===77&&slots[side].media.notice.includes('既定音声'),'alternate movie commits '+side+' and discloses selected default audio');}
+    assertTest(slots.A.asset===slots.B.asset,'alternate iPhone-layout same-file A/B still shares PCM');
+    await waitFor(aligned,'alternate preview');await play('B');await waitFor(()=>aligned()&&!$('listenVideo').paused,'alternate playback');assertTest(playing==='B'&&videoPreview.slot===slots.B,'alternate movie displays LISTEN video synchronized to selected audio');pause(true);
     const inspected=await inspectMediaInput(blob,'IMG_0001.MOV');assertTest(inspected.path==='audio-track-remux'&&inspected.audioBlob.size<blob.size,'MOV extracts only compressed audio without copying video into decoder');
     const decoder=new OfflineAudioContext(2,1,48000),native=await decoder.decodeAudioData(await blob.arrayBuffer()),extracted=await decoder.decodeAudioData(await inspected.audioBlob.arrayBuffer());
     assertTest(native.length===extracted.length&&native.getChannelData(0).every((v,i)=>v===extracted.getChannelData(0)[i]),'MOV audio extraction preserves decoded samples and timeline exactly');
