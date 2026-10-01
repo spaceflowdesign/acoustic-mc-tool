@@ -43,10 +43,10 @@ function initWorkspace(){
       '各側で−60 dBFSとブロックenergyの90パーセンタイルより−30 dBのうち高い方を閾値とし、無音・極低レベル区間を除外します。目的音と環境ノイズの完全な分離はできません。一定の環境ノイズや録音機器のAGCが結果に影響することがあります。レベルは校正された音圧（dB SPL）ではなく、全チャンネル平均のdBFS RMSです。',
       '録音されたレベル差自体にも意味があるため、「GAIN MATCH ?」でA/B ORIGINALとMATCH OFFSETをON/OFFどちらでも確認できます。ONでも元の解析値と音声を保持します。OFFでは20 msのクリック防止遷移後、補正係数は正確に1（0 dB）へ戻ります。SAVE AUDIOは補正前の元データを保存します。'],
     ['自動判定・再計算・負荷','ファイル選択で入れた音声はFILE、Tool内で録音した音声はAIR RECとしてスロットごとに記録します。ファイル名では判定しません。片側だけAIR RECの場合も、観測録音を含むためAIR REC方式で両側を比較し、「混在」と表示します。保存した録音をファイルから開いた場合は由来を確実に判別できないためFILE扱いです。',
-      'AUTO/MANUAL SYNCや音源を変更したら、現在の共通区間で補正量を更新します。有効音がない場合や共通区間が400 ms未満なら補正せずOFFにします。GAIN MATCHの変更は再生だけに作用し、同期位置・解析グラフ・メモ・保存音声を変更しません。読み込み時にWorkerでK-filter計算を追加しますが、全体の再デコードはせず、保持する追加energyは13分で音源あたり約0.6 MiBです。'],
+      'AUTO/MANUAL SYNCや音源を変更したら、現在の共通区間で補正量を更新します。有効音がない場合や共通区間が400 ms未満なら補正せずOFFにします。GAIN MATCHは再生とCOMPARE / DIFF表示へ同じ補正量を適用します。同期位置・元解析データ・メモ・保存音声は変更しません。読み込み時にWorkerでK-filter計算を追加しますが、全体の再デコードはせず、保持する追加energyは13分で音源あたり約0.6 MiBです。'],
     ['AUTO SYNC','音量変化の包絡の相関から開始位置を推定します。位相や波形の完全一致を保証する機能ではありません。無音・一定音・繰り返し・異なる音源などでは確定できない場合があります。推定条件と結果はSYNC画面に表示します。耳と波形で確認してください。'],
     ['MANUAL SYNC','Bの読出し位置からAの読出し位置を引いた値をmsで指定します。正の値ではBを先へ読み出します。±1/±10 msボタンで微調整できます。共通再生区間がなくなる設定は適用しません。同期変更後はGAIN MATCHも再計算します。'],
-    ['DIFF FOCUS','原音の平均スペクトルのB−A差を、STANDARDでは1/3オクターブ、MUSICではDefault / Customの6帯域で表示し、絶対差が大きい最大3帯域を強調します。音源全体から分散抽出した最大64箇所の解析で、GAIN MATCH補正後でも同期後共通区間だけの再解析でもありません。片側でも−100 dBFS以下、または両側で扱えない高域は除外します。音の優劣や原因を自動判定しません。']
+    ['DIFF FOCUS','原音の平均スペクトルのB−A差を、STANDARDでは1/3オクターブ、MUSICではDefault / Customの6帯域で表示し、絶対差が大きい最大3帯域を強調します。音源全体から分散抽出した最大64箇所の解析で、GAIN MATCH ONでは表示だけ同じMatch Offsetを加えます。平均値は同期後共通区間だけの再解析ではありません。片側でも−100 dBFS以下、または両側で扱えない高域は除外します。音の優劣や原因を自動判定しません。']
   ];
   for(const [title,...paragraphs]of sections){const section=element('section');const h=document.createElement('h3');h.textContent=title;section.append(h);for(const text of paragraphs){const p=document.createElement('p');p.textContent=text;section.append(p)}about.querySelector('.dialog-body').append(section)}
   const sourceDialog=addDialog('sourceDialog','A / B SOURCES');sourceDialog.querySelector('.dialog-body').append(filesCard);
@@ -80,8 +80,8 @@ function initWorkspace(){
   const format=element('div',{id:'graphFormat',class:'graph-format'});format.append(visualCard.querySelector('label[for=freqMode]'),$('freqMode'));graphTabs.append(format);
   visualCard.append(element('p',{class:'graph-scope'},'原音解析 · 全体から分散抽出'));graphHelp(visualCard,'解析');
   $('expandCompare').onclick=()=>expandGraph(compareView,compareView==='wave'?'WAVEFORM · A/B':'FREQUENCY · A/B');
-  const diff=element('section',{'data-panel':'diff',hidden:''},'<div class="card"><div class="graph-heading"><h2>DIFF FOCUS</h2><div class="graph-tools"><button id="expandDiff" class="alt">全画面 ⛶</button></div></div><p class="graph-scope">原音の平均スペクトル差 / B − A · dB</p><div class="chartbox workspace-chart"><canvas id="diffChart" aria-label="AとBの周波数差分"></canvas></div><div id="diffFocus" class="diff-focus"></div><p id="diffMessage" class="diff-message"></p></div>');
-  compare.after(diff);helpText.DIFF=['同じ1/3オクターブ帯域内の平均スペクトルパワーを比較します。正の差はBが大きい、負の差はAが大きいことを示します。音の優劣や原因を判定する機能ではありません。','解析対象は各音源全体から分散抽出した最大64箇所です。同期後の共通区間だけを再解析した結果ではありません。GAIN MATCHの再生補正はこの原音グラフへ適用しません。','両方のサンプルレートで有効な帯域を比較します。片側でも解析値が−100 dBFS以下の帯域は差分候補から除外します。差が大きい最大3帯域を表示し、タップで強調できます。'];helpFooter(diff.firstElementChild,'DIFF');$('expandDiff').onclick=()=>expandGraph('diffChart','DIFF FOCUS · B − A');
+  const diff=element('section',{'data-panel':'diff',hidden:''},'<div class="card"><div class="graph-heading"><h2>DIFF FOCUS</h2></div><p class="graph-scope">原音の平均スペクトル差 / B − A · dB</p><div class="chartbox workspace-chart"><canvas id="diffChart" aria-label="AとBの周波数差分"></canvas></div><div id="diffFocus" class="diff-focus"></div><p id="diffMessage" class="diff-message"></p></div>');
+  compare.after(diff);helpText.DIFF=['同じ1/3オクターブ帯域内の平均スペクトルパワーを比較します。正の差はBが大きい、負の差はAが大きいことを示します。音の優劣や原因を判定する機能ではありません。','解析対象は各音源全体から分散抽出した最大64箇所です。同期後の共通区間だけを再解析した結果ではありません。GAIN MATCH ONでは表示計算に再生と同じ補正量を適用します。元解析データは保持します。','両方のサンプルレートで有効な帯域を比較します。片側でも解析値が−100 dBFS以下の帯域は差分候補から除外します。差が大きい最大3帯域を表示し、タップで強調できます。'];helpFooter(diff.firstElementChild,'DIFF');
   // Memo and the inherited reference viewer are separate subviews, never stacked.
   const memoTabs=element('div',{class:'memo-tabs'},'<button class="alt" data-memo="memo" aria-pressed="true">MEMO</button><button class="alt" data-memo="reference" aria-pressed="false">REFERENCE</button>');history.prepend(memoTabs);
   const historyCards=history.querySelectorAll(':scope > .card');historyCards[0].id='memoCard';historyCards[1].id='referenceCard';

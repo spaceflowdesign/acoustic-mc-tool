@@ -12,7 +12,9 @@ function smoothedDisplaySource(s){
   const power=Float64Array.from(s.power,(_,i)=>{const f=i*sr/n,low=Math.max(20,f/factor),high=Math.min(sr/2,f*factor),lo=Math.max(1,Math.ceil(low*n/sr)),hi=Math.min(s.power.length-1,Math.ceil(high*n/sr)-1);return low>=high||hi<lo?1e-12:Math.max(1e-12,(sum[hi+1]-sum[lo])/(hi-lo+1));});
   diffSmoothCache.set(s.power,{width:smoothingOct,power});return {...s,power};
 }
-function currentDifferences(a=slots.A,b=slots.B){return $('freqMode').value==='standard'?spectralDifferences(a,b,standard,band):displayDifferences(smoothedDisplaySource(a),smoothedDisplaySource(b),currentEdges());}
+function displayMatchOffset(side){return typeof playbackMatchGain==='function'?20*Math.log10(playbackMatchGain(side)):0;}
+function displayLevelScope(){return displayMatchOffset('A')||displayMatchOffset('B')?'GAIN MATCH後':'原音';}
+function currentDifferences(a=slots.A,b=slots.B){const rows=$('freqMode').value==='standard'?spectralDifferences(a,b,standard,band):displayDifferences(smoothedDisplaySource(a),smoothedDisplaySource(b),currentEdges());const delta=displayMatchOffset('B')-displayMatchOffset('A');return delta?rows.map(row=>({...row,delta:row.delta+delta})):rows;}
 function diffSources(){
   const a=visibleSource('A'),b=visibleSource('B');
   const live=!!playing&&a!==slots.A&&b!==slots.B&&a?.at===b?.at;
@@ -41,7 +43,8 @@ async function sampleVisual(){
   finally{visualState.busy=false;}
 }
 function visibleSource(k){const frame=visualState.frames[k];return playing&&frame?.asset===slots[k]?.asset&&Math.abs(frame.at-position())<.6?frame:slots[k];}
-function plotLevel(s,f){if(!s||f>s.buffer.sampleRate/2)return null;if($('freqMode').value==='standard')return band(s.power,s.buffer.sampleRate,s.fftSize,f);const factor=2**(smoothingOct/2);if(smoothingOct)return rangeLevel(s.power,s.buffer.sampleRate,s.fftSize,Math.max(20,f/factor),Math.min(s.buffer.sampleRate/2,f*factor));const i=Math.round(f*s.fftSize/s.buffer.sampleRate);return 10*Math.log10(Math.max(1e-12,s.power[i]||0));}
+function rawPlotLevel(s,f){if(!s||f>s.buffer.sampleRate/2)return null;if($('freqMode').value==='standard')return band(s.power,s.buffer.sampleRate,s.fftSize,f);const factor=2**(smoothingOct/2);if(smoothingOct)return rangeLevel(s.power,s.buffer.sampleRate,s.fftSize,Math.max(20,f/factor),Math.min(s.buffer.sampleRate/2,f*factor));const i=Math.round(f*s.fftSize/s.buffer.sampleRate);return 10*Math.log10(Math.max(1e-12,s.power[i]||0));}
+function plotLevel(s,f,side){const value=rawPlotLevel(s,f);return value===null?null:value+(side?displayMatchOffset(side):0);}
 function drawReactiveGraph(){
   if(!$('visualStatus')||$('spectrum').getBoundingClientRect().width===0)return;
   const {g,w,h,l,r}=base('spectrum',''),t=45,b=h-65,x=f=>l+Math.log(f/20)/Math.log(1000)*(r-l),y=v=>b-(Math.max(-120,Math.min(0,v))+120)/120*(b-t);
@@ -50,16 +53,17 @@ function drawReactiveGraph(){
   g.textAlign='left';g.font='9px sans-serif';for(let db=-120;db<=0;db+=20){g.strokeStyle='#173647';g.beginPath();g.moveTo(l,y(db));g.lineTo(r,y(db));g.stroke();g.fillStyle='#94aebe';g.fillText(db,3,y(db)+3);}g.fillText('dBFS',3,37);
   for(const f of [20,50,100,200,500,1000,2000,5000,10000,20000]){g.strokeStyle='#173647';g.beginPath();g.moveTo(x(f),30);g.lineTo(x(f),h-20);g.stroke();g.fillStyle='#93b9cd';g.textAlign='center';g.fillText(f>=1000?f/1000+'k':f,x(f),h-6);}g.textAlign='left';
   const fs=$('freqMode').value==='standard'?standard:Array.from({length:180},(_,i)=>20*1000**(i/179));
-  for(const k of ['A','B']){const s=visibleSource(k);if(!s)continue;const values=fs.map(f=>plotLevel(s,f)),prev=visualState.smoothed[k];
-    const key=s.asset.id+':'+offset+':'+$('freqMode').value+':'+smoothingOct;
+  const pair=diffSources();
+  for(const k of ['A','B']){const s=k==='A'?pair.a:pair.b;if(!s)continue;const values=fs.map(f=>plotLevel(s,f,k)),prev=visualState.smoothed[k];
+    const key=s.asset.id+':'+offset+':'+$('freqMode').value+':'+smoothingOct+':'+displayMatchOffset(k);
     const smooth=values.map((v,i)=>v===null?null:playing&&prev?.key===key&&Number.isFinite(prev.values[i])?prev.values[i]+.22*(v-prev.values[i]):v);visualState.smoothed[k]={key,values:smooth};
     g.strokeStyle=colors[k];g.globalAlpha=playing&&playing!==k?.38:1;g.lineWidth=playing===k?2.5:1.5;g.shadowColor=colors[k];g.shadowBlur=9;g.beginPath();let move=true;fs.forEach((f,i)=>{const v=smooth[i];if(v===null||!Number.isFinite(v)){move=true;return;}if(move)g.moveTo(x(f),y(v));else g.lineTo(x(f),y(v));move=false;});g.stroke();g.shadowBlur=0;g.globalAlpha=1;
   }
-  const a=visibleSource('A'),bb=visibleSource('B'),rows=currentDifferences(a,bb),zero=h-37;
+  const rows=currentDifferences(pair.a,pair.b),zero=h-37;
   if(showInlineDiff){const scale=24/Math.max(12,...rows.map(row=>Math.abs(row.delta)));g.strokeStyle='#7293a3';g.beginPath();g.moveTo(l,zero);g.lineTo(r,zero);g.stroke();for(const row of rows){g.fillStyle=row.delta>=0?colors.B:colors.A;g.fillRect(x(row.low),zero-Math.max(0,row.delta)*scale,Math.max(1,x(row.high)-x(row.low)-1),Math.abs(row.delta)*scale);}
     const peak=[...rows].sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta))[0];if(peak){g.fillStyle='#ddf7ff';g.font='10px sans-serif';g.fillText(bandLabel(peak)+'  '+(peak.delta>=0?'B':'A')+' +'+Math.abs(peak.delta).toFixed(1)+' dB',l+5,43);g.strokeStyle='#a9ef54';g.strokeRect(Math.max(l,x(peak.low)),47,Math.min(r,x(peak.high))-Math.max(l,x(peak.low)),Math.max(1,b-47));}}
   g.fillStyle=colors.A;g.fillText('A',r-70,42);g.fillStyle=colors.B;g.fillText('B',r-50,42);g.fillStyle='#acee4b';g.fillText('Δ',r-25,42);
-  const live=playing&&['A','B'].some(k=>visibleSource(k)!==slots[k]);$('visualStatus').textContent=(live?'再生位置の解析':visualState.failed?'追従解析停止 · 原音の平均解析':'原音の平均解析')+' · '+($('freqMode').value==='standard'?'1/3 OCT':'MUSIC '+(bandSettings.custom?'CUSTOM':'DEFAULT'));
+  $('visualStatus').textContent=displayLevelScope()+' · '+(pair.live?'再生位置の解析':visualState.failed?'追従解析停止 · 平均解析':'平均解析')+' · '+($('freqMode').value==='standard'?'1/3 OCT':'MUSIC '+(bandSettings.custom?'CUSTOM':'DEFAULT'));
 }
 function drawMiniWave(){
   // LISTEN fullscreen uses the large waveform, but retains the same clock/seek.

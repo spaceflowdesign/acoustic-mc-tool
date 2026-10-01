@@ -330,3 +330,24 @@ Node parser tests add completed-Blob log assertions, first/last sample distincti
 The physical bug remains open. Next required evidence: using this build, fail the same MOV import, open input diagnostics, tap **抽出音声をテスト再生（診断）**, and share the complete log plus (if privacy permits) the saved diagnostic M4A or a short MOV that also fails. Do not repeat importing A and B before saving the first diagnostic: the next import intentionally replaces/releases it. Do not mark the issue resolved until that actual device case imports successfully.
 
 Diagnostic checkpoint: mandatory Node suites **7/7 PASS** (9/16/11/2/3/22/1 groups); full desktop browser aggregate **249 checks PASS** (237 retained + 12 diagnostic checks); `git diff --check` PASS. Independent FFmpeg float-PCM hash remains `f3124547fc53068ab8c60155641f7980b521a033a074f5246ba3d6ae95d59598`. Actual Safari 18 acceptance remains **FAILED in the latest user report**, not cleared by these tests. PR #10 remained open/unmerged at this continuation; the new branch continues its exact commit and includes it when targeting main.
+
+## Display / fullscreen continuation: fixes 13–20 (2026-10-01)
+
+Continues merged PR #11 (main `349d5ae8a4a7c7404b96f9a8aaefad29ee5e76f7`). Only the requested presentation changes and their tests are included; the MOV audit/importer, chunked storage, AudioContext recovery and sync algorithms are unchanged.
+
+- **13:** COMPARE curves and B−A differences now add the same per-side `20*log10(playbackMatchGain(side))` used by playback. This applies to FILE and AIR REC, live aligned FFT windows and stopped average analysis, MUSIC and STANDARD. Turning OFF exactly restores raw display values. Original power arrays, PCM, Original Level and SAVE AUDIO sources are unchanged. Existing raw-signal silence/Nyquist eligibility checks remain before display offsets. The existing short playback gain ramp is unchanged; visual offsets show the target coefficient immediately. Earlier documentation saying graphs remain raw with GAIN MATCH ON is superseded by this section.
+- **14 / 19:** A ▶ / B ▶ / ‖ / ■ and a shared SVG repeat icon, with text aria-labels/titles. Fullscreen controls use compact labels and a one-row layout; touch targets remain at least 44 px high. Exit uses an inward-corners icon.
+- **15:** DIFF bars/meters, ranked numeric bands, largest difference and highlight consume the same smoothed difference rows. MUSIC OFF / 1/6 / 1/3 changes redraw immediately; STANDARD remains fixed 1/3. No smoothing is applied to audio. COMPARE and DIFF use paired current-time FFT frames, falling back together to averages if frames are not ready.
+- **16:** The duplicate DIFF FOCUS title fullscreen button is removed; the existing shared graph/waveform-area entry remains.
+- **17:** LISTEN fullscreen retains its large waveform, time and seek. COMPARE and DIFF fullscreen hide the mini waveform and give its space to the graph; normal-page waveform layout is restored on exit.
+- **18 / 20:** Fixed COMPARE / DIFF tabs live outside the three variable control pages at the bottom of the fullscreen dialog. Switching moves DOM elements without closing the dialog, scheduling gain automation, rebuilding audio nodes or changing position, sync, gain, smoothing or the selected control page.
+
+### Verification
+
+- Mandatory Node suites **7/7 PASS**: regression 9, AudioContext 16, gain 11, comparison 2, bands 3, media input 22, display-diff 2 groups.
+- Native desktop Chromium browser harness at **844 × 390: 288 checks PASS** (249 retained + 39 new display/fullscreen assertions). New checks compare rendered bar heights, ranked values and highlights to the same smoothed rows, verify FILE/AIR gain compensation and exact OFF restoration, and switch graphs on all three control pages while preserving active audio and issuing no gain automation.
+- Additional small-landscape **568 × 320: 39/39 PASS**; fixed buttons remain visible on all control pages, no control-row overflow, graph height retained. LISTEN's waveform-height assertion is viewport-relative rather than an absolute 150 px requirement.
+- Portrait **390 × 844: 3/3 fullscreen rotation-target checks PASS** and normal-screen visual inspection. No new swipe or browser-history navigation is introduced.
+- `git diff --check` PASS. Standalone `index.html` rebuilt from maintained modules.
+
+These are desktop browser viewport tests, not physical iPhone Safari tests. In particular, the reported iOS 18.7 / Safari 18.7.7 MOV `EncodingError` remains unresolved; PR #11 diagnostics and the request for the failing remux/log are retained unchanged. This presentation PR does not claim to fix or verify that device failure.
