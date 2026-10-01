@@ -41,8 +41,8 @@ dialog{color:#eafaff;background:#06111a;border:1px solid #1d6078;border-radius:1
 #mainControls{display:grid;grid-template-columns:1fr 1fr;gap:6px}#mainControls>button,.smoothing-label{border:1px solid #387399;border-radius:10px;background:linear-gradient(140deg,#0c2339,#020812);color:#ecf9ff;min-height:52px;margin:0;padding:6px 9px;text-align:left;font-size:12px}#mainControls>button small{font-size:10px;color:#9cd7e6}#mainControls>button[aria-pressed=true]{box-shadow:inset 0 0 12px #00dcff33;border-color:#7cdfff}.smoothing-label{display:flex;flex-direction:column;font-size:11px}.smoothing-label select{border:0;padding:0;min-height:28px;font-size:13px;background:transparent}#quickMemo{grid-column:1/-1;min-height:46px!important}#displayControls{grid-column:1/-1;display:grid;grid-template-columns:1.4fr 1fr auto 44px;gap:4px}#displayControls>*{min-width:0;max-width:100%;font-size:10px;padding:5px;min-height:44px}#displayControls #freqMode{font-size:9px}
 .fixed-design .compact-transport{padding:5px 0;margin:5px 0 0;border:0;background:none}.compact-transport .secondary-controls{display:none}.compact-transport #now{display:none}.compact-transport .gain-caption{margin:3px 0;font-size:9px}.compact-transport .transport{gap:6px}.compact-transport .transport button{min-height:44px}.fixed-design .workspace-status{font-size:10px;margin:2px 0!important;line-height:1.3!important}.fixed-design .bottom-nav{display:flex;gap:4px;margin:6px 0 0;padding:5px 0;border-top:1px solid #354d68}.fixed-design .bottom-nav button{flex:1;border:0;background:transparent;color:#a7c8d9;padding:7px 0;font-size:10px;min-height:45px}.fixed-design .bottom-nav .on{color:#fff;box-shadow:inset 0 -3px #00d9ff;text-shadow:0 0 12px #3e7fff}.listen-heading{font-size:12px;color:#92bacb;margin:12px 0}body:has([data-panel=listen]:not([hidden])) #miniWave{height:110px}
 #toolsDialog .dialog-body{display:grid;gap:10px}#customValues{display:grid;grid-template-columns:1fr 1fr;gap:5px 12px}#customValues input{width:100%}#bandError{color:#ffb0ba;font-size:12px}
-#controlRow{display:grid;grid-template-columns:44px 1fr 44px;gap:6px;padding:4px 8px;flex-shrink:0}#controlPages{min-width:0}.control-page{display:flex;gap:6px;align-items:stretch}.control-page>*{flex:1;min-width:0;max-width:100%;min-height:44px;padding:4px;font-size:11px}.control-page select{font-size:10px}#controlRow>button{padding:0;font-size:23px}
-#graphDialog .dialog-head{padding:3px 10px;height:44px;min-height:44px}#graphDialog .dialog-head h2{font-size:12px}#graphDialog .dialog-head button{min-height:40px;padding:4px 12px}#graphHost{padding:0 8px}#graphDialog #miniStrip{flex-shrink:0;margin:3px 8px;padding:2px 8px 0}#graphDialog #miniWave{height:23px}#graphDialog #miniStrip .mini-info{font-size:9px;line-height:12px}#graphDialog #miniStrip #seek{height:12px;min-height:12px}#graphDialog #miniStrip[hidden]{display:block!important}
+#controlRow{display:grid;grid-template-columns:auto 44px minmax(0,1fr) 44px;gap:4px;padding:4px 8px;flex-shrink:0}#fullGraphTabs{display:flex;gap:4px}#fullGraphTabs button{min-height:44px;padding:4px 6px;font-size:10px}#fullGraphTabs [aria-pressed=true],[data-repeat][aria-pressed=true]{border-color:#00e5ff;box-shadow:inset 0 -2px #00e5ff}#controlPages{min-width:0}.control-page{display:flex;gap:4px;align-items:stretch}.control-page>*{flex:1;min-width:0;max-width:100%;min-height:44px;padding:3px;font-size:11px}.control-page select{font-size:10px}#controlRow>button{padding:0;font-size:20px}
+#graphDialog .dialog-head{padding:3px 10px;height:44px;min-height:44px}#graphDialog .dialog-head h2{font-size:12px}#graphDialog .dialog-head button{min-height:40px;padding:4px 12px}#graphHost{padding:0 8px}#graphDialog #miniStrip{flex-shrink:0;margin:3px 8px;padding:2px 8px 0}#graphDialog #miniWave{height:23px}#graphDialog #miniStrip .mini-info{font-size:9px;line-height:12px}#graphDialog #miniStrip #seek{height:12px;min-height:12px}#graphDialog #miniStrip[hidden]{display:none!important}
 @media(max-width:380px){.fixed-design .brand{font-size:16px}.fixed-design .top{gap:5px}#mainControls>button{font-size:11px}}
 @media(orientation:portrait){#graphDialog[open]{display:none}}
 @media(prefers-reduced-motion:reduce){.fixed-design .pager{box-shadow:none}}
@@ -62,7 +62,7 @@ dialog{color:#eafaff;background:#06111a;border:1px solid #1d6078;border-radius:1
 #videoSource{font-size:11px;overflow-wrap:anywhere;margin-bottom:4px}#videoStatus{font-size:10px;color:#9cbbc9;line-height:1.4;margin:4px 0}#retryVideo{min-height:44px}
 /* Requested transport footprint reduction retains 44px touch targets. */
 .compact-transport .transport{grid-template-columns:1fr 1fr 44px 44px 1.25fr}
-.small-transport{min-width:44px!important;min-height:44px!important;padding:4px 2px!important;font-size:10px!important;flex:0 0 44px!important}
+.small-transport{min-width:44px!important;min-height:44px!important;padding:4px 2px!important;font-size:16px!important;flex:0 0 44px!important}
 [data-repeat]{font-size:10px!important;min-height:44px}[data-repeat][aria-pressed=true]{border-color:#00e5ff;box-shadow:inset 0 0 10px #00d9ff55}
 .term-link{display:inline;border:0;border-bottom:1px dotted #00ddff;border-radius:0;color:#72e9ff;background:none;padding:3px;font-size:inherit}
 .photo-actions{display:flex;flex-wrap:wrap;gap:8px}.photo-actions button{min-height:44px}.photo-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
@@ -525,7 +525,7 @@ function drawDiff(){
   const {a,b:sourceB,live}=diffSources(),rows=currentDifferences(a,sourceB);
   const ranked=[...rows].sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta)).slice(0,3);
   if(!rows.some(r=>r.f===focusedBand))focusedBand=ranked[0]?.f??null;
-  const {g,w,h,l,r,t,b}=base('diffChart','B − A · dB / 原音'),range=Math.max(6,Math.ceil(Math.max(0,...rows.map(x=>Math.abs(x.delta)))/6)*6);
+  const {g,w,h,l,r,t,b}=base('diffChart','B − A · dB / '+displayLevelScope()),range=Math.max(6,Math.ceil(Math.max(0,...rows.map(x=>Math.abs(x.delta)))/6)*6);
   const x=f=>l+Math.log(f/20)/Math.log(1000)*(r-l),y=d=>(t+b)/2-d/range*(b-t)/2;
   g.font='10px sans-serif';g.lineWidth=1;
   for(const d of [-range,-range/2,0,range/2,range]){g.strokeStyle=d===0?'#7594a5':'#193544';g.beginPath();g.moveTo(l,y(d));g.lineTo(r,y(d));g.stroke();g.fillStyle='#9bb4c3';g.fillText((d>0?'+':'')+d,4,y(d)+4)}
@@ -535,7 +535,7 @@ function drawDiff(){
   ranked.forEach((row,i)=>{let btn=host.children[i];if(!btn){btn=document.createElement('button');btn.append(document.createElement('span'),document.createElement('b'));btn.onclick=()=>{focusedBand=Number(btn.dataset.band);drawDiff();};host.append(btn);}btn.dataset.band=row.f;btn.setAttribute('aria-pressed',String(row.f===focusedBand));btn.firstElementChild.textContent=bandLabel(row);const value=btn.lastElementChild;value.textContent=Math.abs(row.delta)<.05?'差 0.0 dB':(row.delta>0?'B':'A')+' +'+Math.abs(row.delta).toFixed(1)+' dB';value.style.color=row.delta>=0?colors.B:colors.A;});
   const scope=live?'現在位置 '+time(a.at)+' · 同期後 A/B':'全体平均 · '+(playing?'現在位置の解析待ち':'停止中');
   const smoothing=$('freqMode').value==='standard'?'1/3 Oct 固定':smoothingOct?'1/'+Math.round(1/smoothingOct)+' Oct':'OFF';
-  document.querySelector('[data-panel=diff] .graph-scope').textContent=scope+' · Smoothing '+smoothing+' · 原音 B − A';
+  document.querySelector('[data-panel=diff] .graph-scope').textContent=scope+' · Smoothing '+smoothing+' · '+displayLevelScope()+' B − A';
   $('diffMessage').textContent=!slots.A||!slots.B?'A/Bを読み込むと差分を表示します。':!rows.length?'比較可能な有音帯域がありません。':`${scope} · Smoothing ${smoothing} · 差の大きい${ranked.length}帯域`;
   if(!rows.length){g.fillStyle='#7995a8';g.fillText('NO COMPARABLE BANDS',l+12,(t+b)/2-14)}
 }
@@ -606,12 +606,13 @@ function applyMatchGain(){
 function toggleGainMatch(){
   refreshGainMatch();if(!gainResult?.valid)return;
   gainEnabled=!gainEnabled;applyMatchGain();renderGainMatch();
+  if(typeof visualState!=='undefined')visualState.smoothed={};if(typeof focusedBand!=='undefined')focusedBand=null;if(typeof draw==='function')draw();
 }
 function renderGainMatch(){
   if(!$('gainToggle'))return;
   $('gainToggle').disabled=!gainResult?.valid||busy.A||busy.B||analysisBusy||!!rec||pendingMic;
   $('gainToggle').textContent='GAIN MATCH '+(gainEnabled?'ON':'OFF');$('gainToggle').setAttribute('aria-pressed',String(gainEnabled));
-  document.querySelectorAll('[data-gain-copy]').forEach(button=>{button.disabled=$('gainToggle').disabled;button.textContent=$('gainToggle').textContent;button.setAttribute('aria-pressed',String(gainEnabled));});
+  document.querySelectorAll('[data-gain-copy]').forEach(button=>{button.disabled=$('gainToggle').disabled;button.textContent='GAIN '+(gainEnabled?'ON':'OFF');button.setAttribute('aria-label',$('gainToggle').textContent);button.title=$('gainToggle').textContent;button.setAttribute('aria-pressed',String(gainEnabled));});
   const r=gainResult,mixed=slots.A&&slots.B&&slots.A.inputKind!==slots.B.inputKind,mode=r?.mode==='air'?'AIR REC'+(mixed?' / 混在':''):'FILE';
   $('gainCaption').textContent=r?.valid?`${mode} · ${gainEnabled?'MATCH OFFSET':'補正候補'} A ${r.db.A.toFixed(1)} / B ${r.db.B.toFixed(1)} dB`:'GAIN MATCH · '+(r?.reason||'A/Bを読み込んでください');
   if($('gainLevels')){
@@ -666,10 +667,10 @@ function initWorkspace(){
       '各側で−60 dBFSとブロックenergyの90パーセンタイルより−30 dBのうち高い方を閾値とし、無音・極低レベル区間を除外します。目的音と環境ノイズの完全な分離はできません。一定の環境ノイズや録音機器のAGCが結果に影響することがあります。レベルは校正された音圧（dB SPL）ではなく、全チャンネル平均のdBFS RMSです。',
       '録音されたレベル差自体にも意味があるため、「GAIN MATCH ?」でA/B ORIGINALとMATCH OFFSETをON/OFFどちらでも確認できます。ONでも元の解析値と音声を保持します。OFFでは20 msのクリック防止遷移後、補正係数は正確に1（0 dB）へ戻ります。SAVE AUDIOは補正前の元データを保存します。'],
     ['自動判定・再計算・負荷','ファイル選択で入れた音声はFILE、Tool内で録音した音声はAIR RECとしてスロットごとに記録します。ファイル名では判定しません。片側だけAIR RECの場合も、観測録音を含むためAIR REC方式で両側を比較し、「混在」と表示します。保存した録音をファイルから開いた場合は由来を確実に判別できないためFILE扱いです。',
-      'AUTO/MANUAL SYNCや音源を変更したら、現在の共通区間で補正量を更新します。有効音がない場合や共通区間が400 ms未満なら補正せずOFFにします。GAIN MATCHの変更は再生だけに作用し、同期位置・解析グラフ・メモ・保存音声を変更しません。読み込み時にWorkerでK-filter計算を追加しますが、全体の再デコードはせず、保持する追加energyは13分で音源あたり約0.6 MiBです。'],
+      'AUTO/MANUAL SYNCや音源を変更したら、現在の共通区間で補正量を更新します。有効音がない場合や共通区間が400 ms未満なら補正せずOFFにします。GAIN MATCHは再生とCOMPARE / DIFF表示へ同じ補正量を適用します。同期位置・元解析データ・メモ・保存音声は変更しません。読み込み時にWorkerでK-filter計算を追加しますが、全体の再デコードはせず、保持する追加energyは13分で音源あたり約0.6 MiBです。'],
     ['AUTO SYNC','音量変化の包絡の相関から開始位置を推定します。位相や波形の完全一致を保証する機能ではありません。無音・一定音・繰り返し・異なる音源などでは確定できない場合があります。推定条件と結果はSYNC画面に表示します。耳と波形で確認してください。'],
     ['MANUAL SYNC','Bの読出し位置からAの読出し位置を引いた値をmsで指定します。正の値ではBを先へ読み出します。±1/±10 msボタンで微調整できます。共通再生区間がなくなる設定は適用しません。同期変更後はGAIN MATCHも再計算します。'],
-    ['DIFF FOCUS','原音の平均スペクトルのB−A差を、STANDARDでは1/3オクターブ、MUSICではDefault / Customの6帯域で表示し、絶対差が大きい最大3帯域を強調します。音源全体から分散抽出した最大64箇所の解析で、GAIN MATCH補正後でも同期後共通区間だけの再解析でもありません。片側でも−100 dBFS以下、または両側で扱えない高域は除外します。音の優劣や原因を自動判定しません。']
+    ['DIFF FOCUS','原音の平均スペクトルのB−A差を、STANDARDでは1/3オクターブ、MUSICではDefault / Customの6帯域で表示し、絶対差が大きい最大3帯域を強調します。音源全体から分散抽出した最大64箇所の解析で、GAIN MATCH ONでは表示だけ同じMatch Offsetを加えます。平均値は同期後共通区間だけの再解析ではありません。片側でも−100 dBFS以下、または両側で扱えない高域は除外します。音の優劣や原因を自動判定しません。']
   ];
   for(const [title,...paragraphs]of sections){const section=element('section');const h=document.createElement('h3');h.textContent=title;section.append(h);for(const text of paragraphs){const p=document.createElement('p');p.textContent=text;section.append(p)}about.querySelector('.dialog-body').append(section)}
   const sourceDialog=addDialog('sourceDialog','A / B SOURCES');sourceDialog.querySelector('.dialog-body').append(filesCard);
@@ -703,8 +704,8 @@ function initWorkspace(){
   const format=element('div',{id:'graphFormat',class:'graph-format'});format.append(visualCard.querySelector('label[for=freqMode]'),$('freqMode'));graphTabs.append(format);
   visualCard.append(element('p',{class:'graph-scope'},'原音解析 · 全体から分散抽出'));graphHelp(visualCard,'解析');
   $('expandCompare').onclick=()=>expandGraph(compareView,compareView==='wave'?'WAVEFORM · A/B':'FREQUENCY · A/B');
-  const diff=element('section',{'data-panel':'diff',hidden:''},'<div class="card"><div class="graph-heading"><h2>DIFF FOCUS</h2><div class="graph-tools"><button id="expandDiff" class="alt">全画面 ⛶</button></div></div><p class="graph-scope">原音の平均スペクトル差 / B − A · dB</p><div class="chartbox workspace-chart"><canvas id="diffChart" aria-label="AとBの周波数差分"></canvas></div><div id="diffFocus" class="diff-focus"></div><p id="diffMessage" class="diff-message"></p></div>');
-  compare.after(diff);helpText.DIFF=['同じ1/3オクターブ帯域内の平均スペクトルパワーを比較します。正の差はBが大きい、負の差はAが大きいことを示します。音の優劣や原因を判定する機能ではありません。','解析対象は各音源全体から分散抽出した最大64箇所です。同期後の共通区間だけを再解析した結果ではありません。GAIN MATCHの再生補正はこの原音グラフへ適用しません。','両方のサンプルレートで有効な帯域を比較します。片側でも解析値が−100 dBFS以下の帯域は差分候補から除外します。差が大きい最大3帯域を表示し、タップで強調できます。'];helpFooter(diff.firstElementChild,'DIFF');$('expandDiff').onclick=()=>expandGraph('diffChart','DIFF FOCUS · B − A');
+  const diff=element('section',{'data-panel':'diff',hidden:''},'<div class="card"><div class="graph-heading"><h2>DIFF FOCUS</h2></div><p class="graph-scope">原音の平均スペクトル差 / B − A · dB</p><div class="chartbox workspace-chart"><canvas id="diffChart" aria-label="AとBの周波数差分"></canvas></div><div id="diffFocus" class="diff-focus"></div><p id="diffMessage" class="diff-message"></p></div>');
+  compare.after(diff);helpText.DIFF=['同じ1/3オクターブ帯域内の平均スペクトルパワーを比較します。正の差はBが大きい、負の差はAが大きいことを示します。音の優劣や原因を判定する機能ではありません。','解析対象は各音源全体から分散抽出した最大64箇所です。同期後の共通区間だけを再解析した結果ではありません。GAIN MATCH ONでは表示計算に再生と同じ補正量を適用します。元解析データは保持します。','両方のサンプルレートで有効な帯域を比較します。片側でも解析値が−100 dBFS以下の帯域は差分候補から除外します。差が大きい最大3帯域を表示し、タップで強調できます。'];helpFooter(diff.firstElementChild,'DIFF');
   // Memo and the inherited reference viewer are separate subviews, never stacked.
   const memoTabs=element('div',{class:'memo-tabs'},'<button class="alt" data-memo="memo" aria-pressed="true">MEMO</button><button class="alt" data-memo="reference" aria-pressed="false">REFERENCE</button>');history.prepend(memoTabs);
   const historyCards=history.querySelectorAll(':scope > .card');historyCards[0].id='memoCard';historyCards[1].id='referenceCard';
@@ -781,7 +782,9 @@ function smoothedDisplaySource(s){
   const power=Float64Array.from(s.power,(_,i)=>{const f=i*sr/n,low=Math.max(20,f/factor),high=Math.min(sr/2,f*factor),lo=Math.max(1,Math.ceil(low*n/sr)),hi=Math.min(s.power.length-1,Math.ceil(high*n/sr)-1);return low>=high||hi<lo?1e-12:Math.max(1e-12,(sum[hi+1]-sum[lo])/(hi-lo+1));});
   diffSmoothCache.set(s.power,{width:smoothingOct,power});return {...s,power};
 }
-function currentDifferences(a=slots.A,b=slots.B){return $('freqMode').value==='standard'?spectralDifferences(a,b,standard,band):displayDifferences(smoothedDisplaySource(a),smoothedDisplaySource(b),currentEdges());}
+function displayMatchOffset(side){return typeof playbackMatchGain==='function'?20*Math.log10(playbackMatchGain(side)):0;}
+function displayLevelScope(){return displayMatchOffset('A')||displayMatchOffset('B')?'GAIN MATCH後':'原音';}
+function currentDifferences(a=slots.A,b=slots.B){const rows=$('freqMode').value==='standard'?spectralDifferences(a,b,standard,band):displayDifferences(smoothedDisplaySource(a),smoothedDisplaySource(b),currentEdges());const delta=displayMatchOffset('B')-displayMatchOffset('A');return delta?rows.map(row=>({...row,delta:row.delta+delta})):rows;}
 function diffSources(){
   const a=visibleSource('A'),b=visibleSource('B');
   const live=!!playing&&a!==slots.A&&b!==slots.B&&a?.at===b?.at;
@@ -810,7 +813,8 @@ async function sampleVisual(){
   finally{visualState.busy=false;}
 }
 function visibleSource(k){const frame=visualState.frames[k];return playing&&frame?.asset===slots[k]?.asset&&Math.abs(frame.at-position())<.6?frame:slots[k];}
-function plotLevel(s,f){if(!s||f>s.buffer.sampleRate/2)return null;if($('freqMode').value==='standard')return band(s.power,s.buffer.sampleRate,s.fftSize,f);const factor=2**(smoothingOct/2);if(smoothingOct)return rangeLevel(s.power,s.buffer.sampleRate,s.fftSize,Math.max(20,f/factor),Math.min(s.buffer.sampleRate/2,f*factor));const i=Math.round(f*s.fftSize/s.buffer.sampleRate);return 10*Math.log10(Math.max(1e-12,s.power[i]||0));}
+function rawPlotLevel(s,f){if(!s||f>s.buffer.sampleRate/2)return null;if($('freqMode').value==='standard')return band(s.power,s.buffer.sampleRate,s.fftSize,f);const factor=2**(smoothingOct/2);if(smoothingOct)return rangeLevel(s.power,s.buffer.sampleRate,s.fftSize,Math.max(20,f/factor),Math.min(s.buffer.sampleRate/2,f*factor));const i=Math.round(f*s.fftSize/s.buffer.sampleRate);return 10*Math.log10(Math.max(1e-12,s.power[i]||0));}
+function plotLevel(s,f,side){const value=rawPlotLevel(s,f);return value===null?null:value+(side?displayMatchOffset(side):0);}
 function drawReactiveGraph(){
   if(!$('visualStatus')||$('spectrum').getBoundingClientRect().width===0)return;
   const {g,w,h,l,r}=base('spectrum',''),t=45,b=h-65,x=f=>l+Math.log(f/20)/Math.log(1000)*(r-l),y=v=>b-(Math.max(-120,Math.min(0,v))+120)/120*(b-t);
@@ -819,16 +823,17 @@ function drawReactiveGraph(){
   g.textAlign='left';g.font='9px sans-serif';for(let db=-120;db<=0;db+=20){g.strokeStyle='#173647';g.beginPath();g.moveTo(l,y(db));g.lineTo(r,y(db));g.stroke();g.fillStyle='#94aebe';g.fillText(db,3,y(db)+3);}g.fillText('dBFS',3,37);
   for(const f of [20,50,100,200,500,1000,2000,5000,10000,20000]){g.strokeStyle='#173647';g.beginPath();g.moveTo(x(f),30);g.lineTo(x(f),h-20);g.stroke();g.fillStyle='#93b9cd';g.textAlign='center';g.fillText(f>=1000?f/1000+'k':f,x(f),h-6);}g.textAlign='left';
   const fs=$('freqMode').value==='standard'?standard:Array.from({length:180},(_,i)=>20*1000**(i/179));
-  for(const k of ['A','B']){const s=visibleSource(k);if(!s)continue;const values=fs.map(f=>plotLevel(s,f)),prev=visualState.smoothed[k];
-    const key=s.asset.id+':'+offset+':'+$('freqMode').value+':'+smoothingOct;
+  const pair=diffSources();
+  for(const k of ['A','B']){const s=k==='A'?pair.a:pair.b;if(!s)continue;const values=fs.map(f=>plotLevel(s,f,k)),prev=visualState.smoothed[k];
+    const key=s.asset.id+':'+offset+':'+$('freqMode').value+':'+smoothingOct+':'+displayMatchOffset(k);
     const smooth=values.map((v,i)=>v===null?null:playing&&prev?.key===key&&Number.isFinite(prev.values[i])?prev.values[i]+.22*(v-prev.values[i]):v);visualState.smoothed[k]={key,values:smooth};
     g.strokeStyle=colors[k];g.globalAlpha=playing&&playing!==k?.38:1;g.lineWidth=playing===k?2.5:1.5;g.shadowColor=colors[k];g.shadowBlur=9;g.beginPath();let move=true;fs.forEach((f,i)=>{const v=smooth[i];if(v===null||!Number.isFinite(v)){move=true;return;}if(move)g.moveTo(x(f),y(v));else g.lineTo(x(f),y(v));move=false;});g.stroke();g.shadowBlur=0;g.globalAlpha=1;
   }
-  const a=visibleSource('A'),bb=visibleSource('B'),rows=currentDifferences(a,bb),zero=h-37;
+  const rows=currentDifferences(pair.a,pair.b),zero=h-37;
   if(showInlineDiff){const scale=24/Math.max(12,...rows.map(row=>Math.abs(row.delta)));g.strokeStyle='#7293a3';g.beginPath();g.moveTo(l,zero);g.lineTo(r,zero);g.stroke();for(const row of rows){g.fillStyle=row.delta>=0?colors.B:colors.A;g.fillRect(x(row.low),zero-Math.max(0,row.delta)*scale,Math.max(1,x(row.high)-x(row.low)-1),Math.abs(row.delta)*scale);}
     const peak=[...rows].sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta))[0];if(peak){g.fillStyle='#ddf7ff';g.font='10px sans-serif';g.fillText(bandLabel(peak)+'  '+(peak.delta>=0?'B':'A')+' +'+Math.abs(peak.delta).toFixed(1)+' dB',l+5,43);g.strokeStyle='#a9ef54';g.strokeRect(Math.max(l,x(peak.low)),47,Math.min(r,x(peak.high))-Math.max(l,x(peak.low)),Math.max(1,b-47));}}
   g.fillStyle=colors.A;g.fillText('A',r-70,42);g.fillStyle=colors.B;g.fillText('B',r-50,42);g.fillStyle='#acee4b';g.fillText('Δ',r-25,42);
-  const live=playing&&['A','B'].some(k=>visibleSource(k)!==slots[k]);$('visualStatus').textContent=(live?'再生位置の解析':visualState.failed?'追従解析停止 · 原音の平均解析':'原音の平均解析')+' · '+($('freqMode').value==='standard'?'1/3 OCT':'MUSIC '+(bandSettings.custom?'CUSTOM':'DEFAULT'));
+  $('visualStatus').textContent=displayLevelScope()+' · '+(pair.live?'再生位置の解析':visualState.failed?'追従解析停止 · 平均解析':'平均解析')+' · '+($('freqMode').value==='standard'?'1/3 OCT':'MUSIC '+(bandSettings.custom?'CUSTOM':'DEFAULT'));
 }
 function drawMiniWave(){
   // LISTEN fullscreen uses the large waveform, but retains the same clock/seek.
@@ -857,10 +862,11 @@ function expandCurrentPage(){
 }
 function pageControls(index){controlPage=Math.max(0,Math.min(2,index));document.querySelectorAll('[data-control-page]').forEach(el=>el.hidden=Number(el.dataset.controlPage)!==controlPage);$('controlPrev').disabled=controlPage===0;$('controlNext').disabled=controlPage===2;$('controlRow').setAttribute('aria-label','操作パネル '+(controlPage+1)+' / 3');}
 function initFullscreenControls(){
-  const row=element('div',{id:'controlRow'},'<button id="controlPrev" class="alt" aria-label="前の操作パネル">◀</button><div id="controlPages"></div><button id="controlNext" class="alt" aria-label="次の操作パネル">▶</button>');$('graphDialog').append(row);
+  const row=element('div',{id:'controlRow'},'<div id="fullGraphTabs" role="group" aria-label="全画面グラフ切替"><button id="fullCompare" class="alt" type="button">COMPARE</button><button id="fullDiff" class="alt" type="button">DIFF</button></div><button id="controlPrev" class="alt" aria-label="前の操作パネル">◀</button><div id="controlPages"></div><button id="controlNext" class="alt" aria-label="次の操作パネル">▶</button>');$('graphDialog').append(row);
+  $('fullCompare').onclick=()=>switchFullscreenGraph('compare');$('fullDiff').onclick=()=>switchFullscreenGraph('diff');
   const pages=Array.from({length:3},(_,i)=>{const p=element('div',{'data-control-page':i,class:'control-page'});$('controlPages').append(p);return p;});
-  pages[0].append(makeAction('PLAY',()=>playing?pause():play(selectedSide),{id:'fullPlay'}),makeAction('A / B',()=>{selectedSide=(playing||selectedSide)==='A'?'B':'A';if(playing)void play(selectedSide);updateWorkspace();},{id:'fullAB'}),makeAction('−5 s',()=>shiftSeek(-5)),makeAction('+5 s',()=>shiftSeek(5)),makeAction('STOP',()=>pause(true)),makeAction('GAIN MATCH',toggleGainMatch,{'data-gain-copy':''}));
-  pages[1].append(makeAction('AUTO SYNC',()=>$('sync').click(),{'data-auto-copy':''}),makeAction('MANUAL SYNC',()=>openDialog('syncDialog')),makeAction('GAIN MATCH',toggleGainMatch,{'data-gain-copy':''}));
+  pages[0].append(makeAction('▶',()=>playing?pause():play(selectedSide),{id:'fullPlay','aria-label':'PLAY'}),makeAction('A / B',()=>{selectedSide=(playing||selectedSide)==='A'?'B':'A';if(playing)void play(selectedSide);updateWorkspace();},{id:'fullAB','aria-label':'A/B切替'}),makeAction('■',()=>pause(true),{id:'fullStop','aria-label':'STOP',title:'STOP'}),makeAction('GAIN',toggleGainMatch,{'data-gain-copy':''}));
+  pages[1].append(makeAction('−5s',()=>shiftSeek(-5),{'aria-label':'5秒戻る'}),makeAction('+5s',()=>shiftSeek(5),{'aria-label':'5秒進む'}),makeAction('SYNC',()=>$('sync').click(),{'data-auto-copy':'','aria-label':'AUTO SYNC',title:'AUTO SYNC'}),makeAction('↔',()=>openDialog('syncDialog'),{'aria-label':'MANUAL SYNC',title:'MANUAL SYNC'}),makeAction('GAIN',toggleGainMatch,{'data-gain-copy':''}));
   const smoothing=element('select',{'aria-label':'全画面 Smoothing',id:'fullSmoothing'},'<option value="0">Smoothing OFF</option><option value="0.16666666666666666">1/6 Oct</option><option value="0.3333333333333333">1/3 Oct</option>');smoothing.value=String(smoothingOct);smoothing.onchange=()=>{$('smoothing').value=smoothing.value;$('smoothing').dispatchEvent(new Event('change'));};pages[1].append(smoothing);
   const mode=$('freqMode').cloneNode(true);mode.id='fullFreqMode';mode.setAttribute('aria-label','全画面 表示方式');mode.onchange=()=>{$('freqMode').value=mode.value;updateWorkspace();draw();};pages[2].append(mode);
   const bands=element('select',{'data-band-mode':'','aria-label':'全画面 Default / Custom'},'<option value="default">Default</option><option value="custom">Custom</option>');bands.onchange=()=>setBandMode(bands.value);pages[2].append(bands,makeAction('帯域編集',()=>openDialog('bandsDialog')),makeAction('DIFF ON',()=>{showInlineDiff=!showInlineDiff;updateWorkspace();draw();},{'data-diff-copy':''}));
@@ -884,7 +890,7 @@ initWorkspace=function(){
   const extras=element('div',{id:'displayControls'});extras.append($('freqMode'));
   const bandMode=element('select',{'data-band-mode':'','aria-label':'Default / Custom'},'<option value="default">Default</option><option value="custom">Custom</option>');bandMode.onchange=()=>setBandMode(bandMode.value);extras.append(bandMode,makeAction('帯域編集',()=>openDialog('bandsDialog')),makeAction('⛶',expandCurrentPage,{'aria-label':'横画面フルスクリーン'}));panel.append(extras);
   $('freqMode').value='music';$('freqMode').setAttribute('aria-label','表示方式');$('freqMode').onchange=()=>{updateWorkspace();draw();};
-  $('smoothing').onchange=()=>{smoothingOct=Number($('smoothing').value);visualState.smoothed={};draw();};$('inlineDiff').onclick=()=>{showInlineDiff=!showInlineDiff;updateWorkspace();draw();};
+  $('smoothing').onchange=()=>{smoothingOct=Number($('smoothing').value);visualState.smoothed={};focusedBand=null;updateWorkspace();draw();};$('inlineDiff').onclick=()=>{showInlineDiff=!showInlineDiff;updateWorkspace();draw();};
   const displayDialog=addDialog('displayDialog','DISPLAY / BANDS');displayDialog.querySelector('.dialog-body').append($('smoothing'),extras);
   const settingsLabel=document.querySelector('.smoothing-label');settingsLabel.replaceChildren(makeAction('Smoothing　⌄<br><small>OFF · 表示設定</small>',()=>openDialog('displayDialog'),{id:'openDisplay','aria-label':'Smoothing・帯域表示設定'}));
   $('smoothing').addEventListener('change',()=>{$('openDisplay').innerHTML='Smoothing　⌄<br><small>'+($('smoothing').selectedOptions[0].textContent)+' · 表示設定</small>';});
@@ -896,12 +902,13 @@ initWorkspace=function(){
   bandsDialog.querySelector('.dialog-body').append(element('p',{id:'bandError',role:'status'}),makeAction('適用・保存',()=>{const edges=Array.from($('customValues').querySelectorAll('input'),el=>el.value.trim()===''?NaN:Number(el.value));if(!validEdges(edges)){$('bandError').textContent='20〜20,000 Hz内で、境界が重ならない昇順の数値を指定してください。';return;}bandSettings={edges,custom:true};saveBands();renderBandControls();$('bandError').textContent='';bandsDialog.close();},{id:'saveBands'}),makeAction('Defaultへ戻す',()=>{bandSettings={edges:[...defaultEdges],custom:false};saveBands();renderBandControls();$('bandError').textContent='';},{id:'resetBands'}));
   addDialog('rotateDialog','横画面に回転してください').querySelector('.dialog-body').textContent='画面の回転ロックを解除して、端末を横向きにしてください。横向きになるとグラフを拡大します。縦画面フルスクリーンは使用しません。';$('rotateDialog').addEventListener('close',()=>{if(!matchMedia('(orientation: landscape)').matches)pendingGraph=null;});
   initFullscreenControls();
+  const exit=$('graphDialog').querySelector('[data-close]');exit.innerHTML='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3v5H3M16 3v5h5M8 21v-5H3M16 21v-5h5"/></svg>';exit.setAttribute('aria-label','フルスクリーン解除');exit.title='フルスクリーン解除';
   const about=$('aboutDialog').querySelector('.dialog-body');for(const [title,text]of [
     ['音楽制作向けDefault帯域','SUB 20–60 Hz / BASS 60–250 Hz / LOW MID 250–500 Hz / MID 500 Hz–2 kHz / HIGH MID 2–8 kHz / TREBLE 8–20 kHz。Toolの音楽制作向け初期区分です。名称に国際規格上の単一の固定境界があるわけではありません。'],
     ['Custom帯域','下側操作パネルから7つの境界を編集します。設定はこのブラウザへ保存し、Defaultへいつでも戻せます。FFT分解能より狭い区間やNyquistを超える区間は測定値を捏造せず表示対象外にします。音声・同期・GAIN MATCHには作用しません。'],
     ['規格モード','ISO 266 / IEC 61260系の公称中心周波数20、25、31.5…20k Hzの1/3 octave表示です。FFT帯域集計であり、規格適合フィルターバンクとは主張しません。音楽帯域ラベルは位置の目安として残し、解析の中心周波数と混同しません。'],
-    ['追従グラフ・Smoothing・DIFF','再生中は同期した現在位置付近の8192サンプルをA/B各チャンネルから読み、WorkerでHann窓FFTを約10回/秒計算します。線の時間補間は表示だけです。MUSICのSmoothingは帯域平均幅（OFF / 1/6 / 1/3 octave）で、規格モードは固定1/3 octaveです。比較グラフ下のDIFFはその時点の未補正パワー差、DIFF画面も同期後の現在位置に追従し、同じSmoothing条件でB−Aを表示します。GAIN MATCH後もグラフと保存音声は原音のままです。停止時は平均解析へ戻ります。'],
-    ['横画面表示とLISTEN','拡大グラフは横向きのみで、縦向きでは回転案内を表示します。ブラウザバーを必ず消すOS全画面ではありません。操作パネルは◀ / ▶で切替、−5 s / +5 sは同期した共通時間軸のシークです。LISTENは解析グラフを隠し、波形・A/B再生・SYNC・GAIN MATCHに集中します。']]){const section=element('section');section.append(element('h3',{},title),element('p',{},text));about.append(section);}
+    ['追従グラフ・Smoothing・DIFF','再生中は同期した現在位置付近の8192サンプルをA/B各チャンネルから読み、WorkerでHann窓FFTを約10回/秒計算します。線の時間補間は表示だけです。MUSICのSmoothingは帯域平均幅（OFF / 1/6 / 1/3 octave）で、規格モードは固定1/3 octaveです。比較グラフ下のDIFFはその時点のパワー差、DIFF画面も同期後の現在位置に追従し、同じSmoothing条件でB−Aを表示します。GAIN MATCH ONではCOMPAREとDIFFの表示に再生と同じMatch Offsetを加えます。Original Level・元解析・保存音声は原音のままです。停止時は平均解析へ戻ります。'],
+    ['横画面表示とLISTEN','拡大グラフは横向きのみで、縦向きでは回転案内を表示します。ブラウザバーを必ず消すOS全画面ではありません。操作パネルは◀ / ▶で切替、−5 s / +5 sは同期した共通時間軸のシークです。全画面のCOMPARE / DIFFは固定ボタンで直接切替でき、波形はLISTEN全画面だけに表示します。LISTENは解析グラフを隠し、波形・A/B再生・SYNC・GAIN MATCHに集中します。']]){const section=element('section');section.append(element('h3',{},title),element('p',{},text));about.append(section);}
   helpText.Tool.push('LISTEN / COMPARE / DIFF / MEMOを矢印か下部ボタンで切り替えます。横スワイプ操作はありません。');
   helpText.DIFF[0]='原音の平均パワーを比較します。MUSICではDefault / Customの6帯域、STANDARDでは公称中心周波数の1/3 octave帯域を使用します。正の差はB、負の差はAが大きいことを示します。';
   helpText['ファイルと再生']=helpText['ファイルと再生'].map(text=>text.replace('音量補正は行いません。','GAIN MATCH OFFでは原音レベルで再生します。'));
@@ -913,13 +920,14 @@ updateWorkspace=function(){
   const compareLike=['compare','listen','diff'].includes(activePage);$('pageTitle').textContent=activePage==='history'?'MEMO':activePage.toUpperCase();$('nextPage').disabled=workspacePages.indexOf(activePage)===workspacePages.length-1;
   if(!playing)visualState.frames={};
   for(const id of ['miniStrip','mainControls','transportDock'])$(id).hidden=!compareLike;document.querySelector('.source-ribbon').hidden=!compareLike;
-  if(fullGraph)$('miniStrip').hidden=false;
+  if(fullGraph)$('miniStrip').hidden=fullGraph.id!=='wave';
   $('wave').parentElement.hidden=fullGraph?.id!=='wave';$('spectrum').parentElement.hidden=false;
   $('quickSync').disabled=$('sync').disabled;$('quickMemo').hidden=activePage==='listen';$('inlineDiff').hidden=activePage==='listen';document.querySelector('.smoothing-label').hidden=activePage==='listen';
   $('inlineDiff').setAttribute('aria-pressed',String(showInlineDiff));
   if(playing)selectedSide=playing;else if(!slots[selectedSide]&&slots[selectedSide==='A'?'B':'A'])selectedSide=selectedSide==='A'?'B':'A';
-  $('fullPlay').textContent=playing?'PAUSE':'PLAY '+selectedSide;$('fullPlay').disabled=playing?false:$('play'+selectedSide).disabled;$('fullAB').textContent='A / B · '+selectedSide;$('fullAB').disabled=$('playA').disabled||$('playB').disabled;
-  document.querySelectorAll('[data-gain-copy]').forEach(b=>{b.textContent='GAIN MATCH '+(gainEnabled?'ON':'OFF');b.disabled=$('gainToggle').disabled;b.setAttribute('aria-pressed',String(gainEnabled));});
+  $('fullPlay').textContent=playing?'‖':selectedSide+' ▶';$('fullPlay').setAttribute('aria-label',playing?'PAUSE':selectedSide+' PLAY');$('fullPlay').title=$('fullPlay').getAttribute('aria-label');$('fullPlay').disabled=playing?false:$('play'+selectedSide).disabled;$('fullAB').textContent='A / B';$('fullAB').setAttribute('aria-label','A/B切替（現在 '+selectedSide+'）');$('fullAB').disabled=$('playA').disabled||$('playB').disabled;
+  for(const [id,target]of [['fullCompare','spectrum'],['fullDiff','diffChart']])$(id).setAttribute('aria-pressed',String(fullGraph?.id===target));
+  document.querySelectorAll('[data-gain-copy]').forEach(b=>{b.textContent='GAIN '+(gainEnabled?'ON':'OFF');b.setAttribute('aria-label','GAIN MATCH '+(gainEnabled?'ON':'OFF'));b.title=b.getAttribute('aria-label');b.disabled=$('gainToggle').disabled;b.setAttribute('aria-pressed',String(gainEnabled));});
   document.querySelectorAll('[data-auto-copy]').forEach(b=>b.disabled=$('sync').disabled);document.querySelectorAll('[data-diff-copy]').forEach(b=>b.textContent='DIFF '+(showInlineDiff?'ON':'OFF'));
   document.querySelectorAll('[data-source]').forEach(b=>b.classList.toggle('is-playing',playing===b.dataset.source));
   $('fullFreqMode').value=$('freqMode').value;$('fullSmoothing').value=$('smoothing').value=String($('freqMode').value==='standard'?1/3:smoothingOct);$('fullSmoothing').disabled=$('smoothing').disabled=$('freqMode').value==='standard';
@@ -928,8 +936,17 @@ updateWorkspace=function(){
 expandGraph=function(id,title){
   if(fullGraph)return;if(!matchMedia('(orientation: landscape)').matches){pendingGraph={id,title};openDialog('rotateDialog');return;}
   pendingGraph=null;const box=$(id).parentElement,marker=document.createComment('graph-home');box.before(marker);fullGraph={id,box,marker,trigger:document.activeElement};box.hidden=false;$('graphHost').append(box);
-  moveWithMarker($('miniStrip'),$('graphDialog'));$('graphDialog').append($('controlRow'));$('miniStrip').hidden=false;$('graphDialog').classList.toggle('listen-fullscreen',activePage==='listen'&&id==='wave');$('graphDialog').querySelector('h2').textContent=title;openDialog('graphDialog');pageControls(0);updateWorkspace();draw();
+  moveWithMarker($('miniStrip'),$('graphDialog'));$('graphDialog').append($('controlRow'));$('miniStrip').hidden=id!=='wave';$('graphDialog').classList.toggle('listen-fullscreen',id==='wave');$('graphDialog').querySelector('h2').textContent=title;openDialog('graphDialog');pageControls(0);updateWorkspace();draw();
 };
+function switchFullscreenGraph(page){
+  if(!fullGraph||!$('graphDialog').open||!['compare','diff'].includes(page))return;
+  const id=page==='compare'?'spectrum':'diffChart';if(fullGraph.id===id)return;
+  const trigger=fullGraph.trigger;fullGraph.marker.replaceWith(fullGraph.box);
+  const box=$(id).parentElement,marker=document.createComment('graph-home');box.before(marker);fullGraph={id,box,marker,trigger};box.hidden=false;$('graphHost').append(box);
+  $('graphDialog').classList.remove('listen-fullscreen');$('graphDialog').querySelector('h2').textContent=page==='compare'?'COMPARE':'DIFF FOCUS';
+  // DOM/layout only: do not close/reopen the modal or touch transport/audio.
+  changePage(page);updateWorkspace();draw();
+}
 restoreGraph=function(){if(!fullGraph||$('graphDialog').open)return;const {box,marker,trigger}=fullGraph;marker.replaceWith(box);for(const {el,marker:m}of fullMoves)m.replaceWith(el);fullMoves=[];fullGraph=null;$('graphDialog').classList.remove('listen-fullscreen');updateWorkspace();draw();trigger?.focus();};
 window.addEventListener('resize',()=>{if(matchMedia('(orientation: landscape)').matches&&pendingGraph){const p=pendingGraph;pendingGraph=null;$('rotateDialog').close();expandGraph(p.id,p.title);}else if(!matchMedia('(orientation: landscape)').matches&&fullGraph){const p={id:fullGraph.id,title:$('graphDialog').querySelector('h2').textContent};$('graphDialog').close();restoreGraph();pendingGraph=p;openDialog('rotateDialog');}});
 
@@ -1231,14 +1248,16 @@ function startRemuxAudioProbe(){
 }
 
 let repeatEnabled=false;
-function renderRepeat(){document.querySelectorAll('[data-repeat]').forEach(b=>{b.textContent='REPEAT '+(repeatEnabled?'ON':'OFF');b.setAttribute('aria-pressed',String(repeatEnabled));});}
+const repeatIcon='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 10V7h14l-3-3m3 3-3 3M20 14v3H6l3 3m-3-3 3-3"/></svg>';
+function renderRepeat(){document.querySelectorAll('[data-repeat]').forEach(b=>{if(!b.firstElementChild)b.innerHTML=repeatIcon;b.setAttribute('aria-label','REPEAT '+(repeatEnabled?'ON':'OFF'));b.title=b.getAttribute('aria-label');b.setAttribute('aria-pressed',String(repeatEnabled));});}
 function toggleRepeat(){repeatEnabled=!repeatEnabled;renderRepeat();}
 function finishPlayback(){const side=playing;pause(true);if(repeatEnabled&&side&&!document.hidden)void play(side);}
 const repeatInit=initWorkspace,repeatUpdate=updateWorkspace;
 initWorkspace=function(){repeatInit();
   $('pause').classList.add('small-transport');$('stop').classList.add('small-transport');
+  for(const [id,icon,label]of [['playA','A ▶','A PLAY'],['playB','B ▶','B PLAY'],['pause','‖','PAUSE'],['stop','■','STOP']]){$(id).textContent=icon;$(id).setAttribute('aria-label',label);$(id).title=label;}
   $('stop').after(makeAction('REPEAT OFF',toggleRepeat,{'data-repeat':'',id:'repeatToggle'}));
-  const fullStop=document.querySelector('[data-control-page="0"]').querySelectorAll('button')[4];fullStop.id='fullStop';fullStop.classList.add('small-transport');
+  const fullStop=$('fullStop');fullStop.classList.add('small-transport');
   fullStop.after(makeAction('REPEAT OFF',toggleRepeat,{'data-repeat':'',id:'fullRepeat'}));renderRepeat();
 };
 updateWorkspace=function(){repeatUpdate();$('fullPlay')?.classList.toggle('small-transport',!!playing);renderRepeat();};
@@ -1257,7 +1276,7 @@ const beginnerTerms={
 const helpRoutes={
   LISTEN:{intro:'耳でA/Bを比較する画面です。動画入力時だけ映像も表示します。',topics:['ファイルと再生','同期','GAIN MATCH'],details:['PLAYで選択側を再生し、A/Bを切り替えて同じ共通区間を聴き比べます。波形・シークで位置を移動します。動画映像は選択側の音声時刻へ追従します。','REPEAT ONは同期後の共通区間を繰り返します。A/B・GAIN MATCH・SYNC offsetは維持します。切替時の読出し待ちを含むためギャップレス再生ではありません。','拡大は横画面の波形です。映像は隠すだけで再読込せず、音声出力経路は変更しません。']},
   COMPARE:{intro:'同じグラフ上でA/Bを見ながら比較します。',topics:['解析','GAIN MATCH','同期'],details:['再生中は同期した現在位置のFFT、停止時は全体から分散抽出した平均を表示します。音声の優劣を自動判定するものではありません。','MUSICのSmoothing初期値はOFFです。1/6・1/3 octaveを選べます。STANDARDは固定1/3 octaveで独立しています。表示の変更は再生音を加工しません。']},
-  DIFF:{intro:'AとBのどの周波数が変化したかを確認する画面です。',topics:['解析'],details:['再生中は同じ共通時刻のA/BをFFTし、B − Aを表示します。正はBが大きく、負はAが大きいことを示します。停止中または解析待ちは明示した全体平均です。','COMPAREと同じSmoothingでA/Bのパワーをならしてから差を求めます。グラフと数値は同じ帯域集計結果を使います。MUSICはDefault/Customの6帯域、STANDARDは固定1/3 octave。GAIN MATCH後も原音の解析値です。','無音近傍や両側で解析できない高域は差分候補にしません。差が大きいことが良い音を意味するわけではありません。']},
+  DIFF:{intro:'AとBのどの周波数が変化したかを確認する画面です。',topics:['解析'],details:['再生中は同じ共通時刻のA/BをFFTし、B − Aを表示します。正はBが大きく、負はAが大きいことを示します。停止中または解析待ちは明示した全体平均です。','COMPAREと同じSmoothingでA/Bのパワーをならしてから差を求めます。グラフと数値は同じ帯域集計結果を使います。MUSICはDefault/Customの6帯域、STANDARDは固定1/3 octave。GAIN MATCH ONではグラフ・メーター・数値に再生と同じMatch Offsetを加えます。OFFで元表示へ戻り、元解析値とOriginal Levelは常に保持します。','無音近傍や両側で解析できない高域は差分候補にしません。差が大きいことが良い音を意味するわけではありません。']},
   MEMO:{intro:'メモと写真を同じ日時の記録として残すMEMO + PHOTOです。',topics:[],details:['テキストの既存セッション保存は維持します。写真ライブラリ／カメラから画像を追加し「記録を保存」でメモと写真を一緒にこのブラウザへ保存します。','カメラは端末が対応する場合に背面カメラを要求します。Safariの権限と写真形式に依存します。表示できない写真も元ファイルを保存できます。','写真付き記録は端末内のIndexedDBです。ブラウザデータ消去や容量不足、プライベートモードでは保持できない場合があります。大切な写真は元データも保管してください。SAVE REFERENCEはAIR REC側に残っています。']}
 };
 let helpTrail=[];

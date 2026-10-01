@@ -13,6 +13,7 @@ assert.equal(scope.spectralDifferences(null,B,[100],band).length,0);
 assert.equal(scope.spectralDifferences(A,source(-40,16000),[10000],band).length,0);
 const ui=readFileSync(new URL('workspace-ui.js',root),'utf8');
 assert.ok(!/pushState|replaceState|touchmove|touchstart|pointermove|location\s*=/.test(ui));
-for(const id of ['wave','spectrum','diffChart','referenceChart','liveChart'])assert.ok(ui.includes("'"+id+"'"));
+for(const id of ['wave','spectrum','diffChart','referenceChart','liveChart'])assert.ok(ui.includes("'"+id+"'")||ui.includes('id="'+id+'"'));
+assert.ok(!ui.includes('expandDiff'));
 console.log('PASS DIFF direction, equality, silence/nonfinite floor, missing slot and shared Nyquist');
 console.log('PASS explicit DOM page switching without history writes or swipe listeners; all graphs retained');

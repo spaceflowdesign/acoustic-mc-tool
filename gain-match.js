@@ -62,12 +62,13 @@ function applyMatchGain(){
 function toggleGainMatch(){
   refreshGainMatch();if(!gainResult?.valid)return;
   gainEnabled=!gainEnabled;applyMatchGain();renderGainMatch();
+  if(typeof visualState!=='undefined')visualState.smoothed={};if(typeof focusedBand!=='undefined')focusedBand=null;if(typeof draw==='function')draw();
 }
 function renderGainMatch(){
   if(!$('gainToggle'))return;
   $('gainToggle').disabled=!gainResult?.valid||busy.A||busy.B||analysisBusy||!!rec||pendingMic;
   $('gainToggle').textContent='GAIN MATCH '+(gainEnabled?'ON':'OFF');$('gainToggle').setAttribute('aria-pressed',String(gainEnabled));
-  document.querySelectorAll('[data-gain-copy]').forEach(button=>{button.disabled=$('gainToggle').disabled;button.textContent=$('gainToggle').textContent;button.setAttribute('aria-pressed',String(gainEnabled));});
+  document.querySelectorAll('[data-gain-copy]').forEach(button=>{button.disabled=$('gainToggle').disabled;button.textContent='GAIN '+(gainEnabled?'ON':'OFF');button.setAttribute('aria-label',$('gainToggle').textContent);button.title=$('gainToggle').textContent;button.setAttribute('aria-pressed',String(gainEnabled));});
   const r=gainResult,mixed=slots.A&&slots.B&&slots.A.inputKind!==slots.B.inputKind,mode=r?.mode==='air'?'AIR REC'+(mixed?' / 混在':''):'FILE';
   $('gainCaption').textContent=r?.valid?`${mode} · ${gainEnabled?'MATCH OFFSET':'補正候補'} A ${r.db.A.toFixed(1)} / B ${r.db.B.toFixed(1)} dB`:'GAIN MATCH · '+(r?.reason||'A/Bを読み込んでください');
   if($('gainLevels')){
