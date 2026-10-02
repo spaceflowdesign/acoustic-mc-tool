@@ -15,6 +15,8 @@ function expandCurrentPage(){
 function pageControls(index){controlPage=Math.max(0,Math.min(2,index));document.querySelectorAll('[data-control-page]').forEach(el=>el.hidden=Number(el.dataset.controlPage)!==controlPage);$('controlPrev').disabled=controlPage===0;$('controlNext').disabled=controlPage===2;$('controlRow').setAttribute('aria-label','操作パネル '+(controlPage+1)+' / 3');}
 function initFullscreenControls(){
   const row=element('div',{id:'controlRow'},'<div id="fullGraphTabs" role="group" aria-label="全画面グラフ切替"><button id="fullCompare" class="alt" type="button">COMPARE</button><button id="fullDiff" class="alt" type="button">DIFF</button></div><button id="controlPrev" class="alt" aria-label="前の操作パネル">◀</button><div id="controlPages"></div><button id="controlNext" class="alt" aria-label="次の操作パネル">▶</button>');$('graphDialog').append(row);
+  const waveTab=makeAction('WAVE',()=>switchFullscreenGraph('listen'),{id:'fullWave'});$('fullGraphTabs').prepend(waveTab);row.append($('fullGraphTabs'));
+  row.prepend($('graphDialog').querySelector('[data-close]'));
   $('fullCompare').onclick=()=>switchFullscreenGraph('compare');$('fullDiff').onclick=()=>switchFullscreenGraph('diff');
   const pages=Array.from({length:3},(_,i)=>{const p=element('div',{'data-control-page':i,class:'control-page'});$('controlPages').append(p);return p;});
   pages[0].append(makeAction('▶',()=>playing?pause():play(selectedSide),{id:'fullPlay','aria-label':'PLAY'}),makeAction('A / B',()=>{selectedSide=(playing||selectedSide)==='A'?'B':'A';if(playing)void play(selectedSide);updateWorkspace();},{id:'fullAB','aria-label':'A/B切替'}),makeAction('■',()=>pause(true),{id:'fullStop','aria-label':'STOP',title:'STOP'}),makeAction('GAIN',toggleGainMatch,{'data-gain-copy':''}));
@@ -78,7 +80,9 @@ updateWorkspace=function(){
   $('inlineDiff').setAttribute('aria-pressed',String(showInlineDiff));
   if(playing)selectedSide=playing;else if(!slots[selectedSide]&&slots[selectedSide==='A'?'B':'A'])selectedSide=selectedSide==='A'?'B':'A';
   $('fullPlay').textContent=playing?'‖':selectedSide+' ▶';$('fullPlay').setAttribute('aria-label',playing?'PAUSE':selectedSide+' PLAY');$('fullPlay').title=$('fullPlay').getAttribute('aria-label');$('fullPlay').disabled=playing?false:$('play'+selectedSide).disabled;$('fullAB').textContent='A / B';$('fullAB').setAttribute('aria-label','A/B切替（現在 '+selectedSide+'）');$('fullAB').disabled=$('playA').disabled||$('playB').disabled;
-  for(const [id,target]of [['fullCompare','spectrum'],['fullDiff','diffChart']])$(id).setAttribute('aria-pressed',String(fullGraph?.id===target));
+  for(const [id,target]of [['fullWave','wave'],['fullCompare','spectrum'],['fullDiff','diffChart']])$(id).setAttribute('aria-pressed',String(fullGraph?.id===target));
+  document.body.dataset.audible=playing||'';
+  $('fullAB').innerHTML='<span data-audible-side="A">A</span> / <span data-audible-side="B">B</span>';
   document.querySelectorAll('[data-gain-copy]').forEach(b=>{b.textContent='GAIN '+(gainEnabled?'ON':'OFF');b.setAttribute('aria-label','GAIN MATCH '+(gainEnabled?'ON':'OFF'));b.title=b.getAttribute('aria-label');b.disabled=$('gainToggle').disabled;b.setAttribute('aria-pressed',String(gainEnabled));});
   document.querySelectorAll('[data-auto-copy]').forEach(b=>b.disabled=$('sync').disabled);document.querySelectorAll('[data-diff-copy]').forEach(b=>b.textContent='DIFF '+(showInlineDiff?'ON':'OFF'));
   document.querySelectorAll('[data-source]').forEach(b=>b.classList.toggle('is-playing',playing===b.dataset.source));
@@ -91,11 +95,11 @@ expandGraph=function(id,title){
   moveWithMarker($('miniStrip'),$('graphDialog'));$('graphDialog').append($('controlRow'));$('miniStrip').hidden=id!=='wave';$('graphDialog').classList.toggle('listen-fullscreen',id==='wave');$('graphDialog').querySelector('h2').textContent=title;openDialog('graphDialog');pageControls(0);updateWorkspace();draw();
 };
 function switchFullscreenGraph(page){
-  if(!fullGraph||!$('graphDialog').open||!['compare','diff'].includes(page))return;
-  const id=page==='compare'?'spectrum':'diffChart';if(fullGraph.id===id)return;
+  if(!fullGraph||!$('graphDialog').open||!['listen','compare','diff'].includes(page))return;
+  const id={listen:'wave',compare:'spectrum',diff:'diffChart'}[page];if(fullGraph.id===id)return;
   const trigger=fullGraph.trigger;fullGraph.marker.replaceWith(fullGraph.box);
   const box=$(id).parentElement,marker=document.createComment('graph-home');box.before(marker);fullGraph={id,box,marker,trigger};box.hidden=false;$('graphHost').append(box);
-  $('graphDialog').classList.remove('listen-fullscreen');$('graphDialog').querySelector('h2').textContent=page==='compare'?'COMPARE':'DIFF FOCUS';
+  $('graphDialog').classList.toggle('listen-fullscreen',id==='wave');$('graphDialog').querySelector('h2').textContent={listen:'WAVE',compare:'COMPARE',diff:'DIFF FOCUS'}[page];
   // DOM/layout only: do not close/reopen the modal or touch transport/audio.
   changePage(page);updateWorkspace();draw();
 }

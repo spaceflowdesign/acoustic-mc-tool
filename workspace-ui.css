@@ -48,4 +48,24 @@ dialog{color:#eafaff;background:#06111a;border:1px solid #1d6078;border-radius:1
 [data-repeat]{font-size:10px!important;min-height:44px}[data-repeat][aria-pressed=true]{border-color:#00e5ff;box-shadow:inset 0 0 10px #00d9ff55}
 .term-link{display:inline;border:0;border-bottom:1px dotted #00ddff;border-radius:0;color:#72e9ff;background:none;padding:3px;font-size:inherit}
 .photo-actions{display:flex;flex-wrap:wrap;gap:8px}.photo-actions button{min-height:44px}.photo-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+/* Fullscreen only: remove the title band, keep bottom-row exit and safe areas. */
+#graphDialog{overflow-x:hidden}
+#graphDialog .dialog-head{position:absolute;top:env(safe-area-inset-top);right:env(safe-area-inset-right);padding:0;height:auto;min-height:0;background:transparent;border:0;z-index:5;pointer-events:none}
+#graphDialog .dialog-head h2{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+#graphDialog .dialog-head button{pointer-events:auto;width:44px;min-height:44px;padding:6px;background:#06111acc}
+#graphDialog #graphHost{padding:0 4px}
+#controlRow{grid-template-columns:36px 28px minmax(0,1fr) 28px auto;gap:3px;padding:3px 4px}
+#fullGraphTabs{gap:2px}#fullGraphTabs button{padding:3px 5px;font-size:9px}
+.control-page{gap:3px}.control-page>*{padding:2px;font-size:10px}.control-page select{font-size:9px}
+#listenVideoPanel video{display:block;width:100%;max-height:32dvh;object-fit:contain;background:#000}
+#listenVideoPanel video[hidden]{display:none}
+[data-audible-side=A]{color:#00dfff}[data-audible-side=B]{color:#ff43df}
+#playA,body[data-audible=A] .legendA{color:#00dfff}#playB,body[data-audible=B] .legendB{color:#ff43df}
+body[data-audible=A] .legendA,body[data-audible=B] .legendB{font-weight:800;text-shadow:0 0 12px currentColor}
+body[data-audible=A] .legendB,body[data-audible=B] .legendA{opacity:.5}
+body[data-audible=A] [data-audible-side=A],body[data-audible=B] [data-audible-side=B],body[data-audible=A] #playA,body[data-audible=B] #playB{font-weight:800;text-shadow:0 0 5px currentColor,0 0 12px currentColor}
+body[data-audible=A] [data-audible-side=B],body[data-audible=B] [data-audible-side=A]{opacity:.5}
+body[data-audible=A] .source-summary[data-source=A],body[data-audible=B] .source-summary[data-source=B]{text-shadow:0 0 8px currentColor;font-weight:800}
+body[data-audible=A] .source-summary[data-source=A]{color:#00dfff}body[data-audible=B] .source-summary[data-source=B]{color:#ff43df}
+body[data-audible=A] .source-summary[data-source=B],body[data-audible=B] .source-summary[data-source=A]{opacity:.55}
 #memoRecords{display:grid;gap:8px}#draftPhotos figure,#memoRecordDialog figure{margin:5px 0;min-width:0}#draftPhotos img,#memoRecordDialog img{max-width:100%;max-height:40vh;object-fit:contain}figcaption{overflow-wrap:anywhere;font-size:11px}.saved-memo{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit}

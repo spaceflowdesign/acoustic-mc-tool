@@ -65,7 +65,7 @@ const pageFullscreenTests=makeAction('RUN PAGE FULLSCREEN TESTS',async()=>{
 const allSuites=makeAction('RUN ALL LANDSCAPE TESTS',async()=>{
   allSuites.disabled=true;
   try{if(!matchMedia('(orientation: landscape)').matches)throw Error('Landscape viewport required');
-    for(const button of [testButton,mp4Button,recoveryButton,workspaceButton,gainTests,bandsTests,pageFullscreenTests,videoTests,remuxProbeTests,extrasTests,presentationTests]){await button.onclick();if(/(^|\n)FAIL /.test(out.textContent))throw Error('Stop: suite failed');}
+    for(const button of [testButton,mp4Button,recoveryButton,workspaceButton,gainTests,bandsTests,pageFullscreenTests,videoTests,remuxProbeTests,extrasTests,presentationTests,continuationTests]){await button.onclick();if(/(^|\n)FAIL /.test(out.textContent))throw Error('Stop: suite failed');}
     log('ALL LANDSCAPE TESTS COMPLETE: '+out.textContent.split('\n').filter(line=>line.startsWith('PASS ')).length+' checks');
   }catch(error){log('FAIL '+error.message);}finally{allSuites.disabled=false;}
 });testBox.append(allSuites);
@@ -99,3 +99,48 @@ const presentationTests=makeAction('RUN DISPLAY / FULLSCREEN 13-20 TESTS',async(
     log('DISPLAY / FULLSCREEN 13-20 TESTS COMPLETE');
   }catch(e){log('FAIL '+e.stack);}finally{if($('graphDialog').open)await close();pause();presentationTests.disabled=false;}
 });testBox.append(presentationTests);
+
+const continuationTests=makeAction('RUN 21-30 REGRESSIONS',async()=>{
+  continuationTests.disabled=true;
+  const close=async id=>{if(!$(id).open)return;const p=new Promise(r=>$(id).addEventListener('close',r,{once:true}));$(id).querySelector('[data-close]').click();await p;};
+  const waitFor=async(fn,label)=>{for(let i=0;i<100;i++){if(fn())return;await delay(50);}throw Error('Timeout '+label);};
+  try{
+    pause(true);if(repeatEnabled)toggleRepeat();
+    const ids=[...document.querySelectorAll('[id]')].map(el=>el.id);assertTest(ids.length===new Set(ids).size,'unique DOM IDs before help enumeration');
+    for(const button of document.querySelectorAll('.help-button')){button.click();assertTest($('helpDialog').open&&!!$('helpDialog').querySelector('.dialog-body p')?.textContent,'wired help entry: '+button.getAttribute('aria-label'));await close('helpDialog');}
+    openDialog('aboutDialog');
+    for(const button of $('aboutDialog').querySelectorAll('[data-help-target]')){const target=$(button.dataset.helpTarget);assertTest(!!target&&target.closest('dialog')===$('aboutDialog'),'help index target exists: '+button.textContent);button.click();}
+    const topics=[...$('aboutDialog').querySelectorAll('[data-help-topic]')].map(b=>b.dataset.helpTopic);
+    for(const topic of topics){
+      const button=[...$('aboutDialog').querySelectorAll('[data-help-topic]')].find(b=>b.dataset.helpTopic===topic);button.click();
+      assertTest($('helpDialog').open&&!$('aboutDialog').open&&helpTrail.at(-1).topic===topic,'ABOUT opens visible help: '+topic);
+      const detail=[...$('helpDialog').querySelectorAll('button')].find(b=>b.textContent==='仕様・使い方・注意点を見る');detail.click();
+      assertTest(helpTrail.at(-1).details&&$('helpDialog').querySelector('.dialog-body p')?.textContent.length>0,'help details connected: '+topic);
+      const terms=[...$('helpDialog').querySelectorAll('.term-link')].map(b=>b.textContent);
+      for(const term of new Set(terms)){[...$('helpDialog').querySelectorAll('.term-link')].find(b=>b.textContent===term).click();assertTest(helpTrail.at(-1).term===term&&!!beginnerTerms[term],'term destination: '+topic+' / '+term);$('helpDialog').querySelector('[data-help-back]').click();}
+      const related=[...$('helpDialog').querySelectorAll('button')].filter(b=>b.textContent.endsWith('とは？')).map(b=>b.textContent);
+      for(const name of related){[...$('helpDialog').querySelectorAll('button')].find(b=>b.textContent===name).click();assertTest(!!helpRoutes[helpTrail.at(-1).topic]||!!helpText[helpTrail.at(-1).topic],'related help destination: '+name);$('helpDialog').querySelector('[data-help-back]').click();}
+      $('helpDialog').querySelector('[data-help-back]').click();$('helpDialog').querySelector('[data-help-back]').click();
+      assertTest($('aboutDialog').open&&!$('helpDialog').open,'two Back taps return to ABOUT: '+topic);
+    }
+    for(const term of Object.keys(beginnerTerms)){const link=[...$('aboutDialog').querySelectorAll('.term-link')].find(b=>b.textContent===term);assertTest(!!link,'glossary entry reachable: '+term);link.click();assertTest($('helpDialog').open&&!$('aboutDialog').open&&helpTrail.at(-1).term===term,'ABOUT term is not behind modal: '+term);$('helpDialog').querySelector('[data-help-back]').click();}
+    await close('aboutDialog');showHelp('COMPARE');$('helpDialog').querySelector('.about-link').click();assertTest($('aboutDialog').open&&!$('helpDialog').open,'help to ABOUT does not leave inert help underneath');await close('aboutDialog');assertTest($('helpDialog').open&&helpTrail.at(-1).topic==='COMPARE','closing ABOUT restores calling help');await close('helpDialog');
+    const movie=await (await fetch('/camera.mov')).blob();await loadBlob('A',movie,'stable-A.MOV');await loadBlob('B',movie,'stable-B.MOV');changePage('listen');setOffset(125);if(!gainEnabled)toggleGainMatch();
+    for(const side of ['A','B']){
+      await play(side);await waitFor(()=>videoPreview.records[side].video.readyState>=2&&!videoPreview.records[side].video.paused,'video '+side);await delay(300);
+      const r=videoPreview.records[side],v=r.video,url=r.url,stamp=v.currentTime;let seeks=0,srcChanges=0;const seek=()=>seeks++;v.addEventListener('seeking',seek);const observer=new MutationObserver(ms=>srcChanges+=ms.filter(m=>m.attributeName==='src').length);observer.observe(v,{attributes:true});
+      await delay(1100);observer.disconnect();v.removeEventListener('seeking',seek);
+      assertTest(v===videoPreview.records[side].video&&url===r.url&&srcChanges===0&&v.currentTime>stamp+.5&&seeks<=2&&v.style.visibility==='visible','stable continuous '+side+' video: no src/DOM churn, bounded seeks, no blanking');
+      assertTest(document.body.dataset.audible===side&&document.querySelector('[data-source='+side+']').classList.contains('is-playing'),'audible side text highlight: '+side);
+      const other=side==='A'?'B':'A';assertTest(getComputedStyle(document.querySelector('[data-source='+side+']')).textShadow!=='none'&&Number(getComputedStyle(document.querySelector('[data-source='+other+']')).opacity)<1,'audible label glows and inactive label dims: '+side);
+    }
+    const saved=Object.fromEntries(Object.entries(videoPreview.records).map(([k,r])=>[k,{video:r.video,url:r.url}]));await play('A');await waitFor(()=>!videoPreview.records.A.video.paused,'return A');
+    assertTest(Object.entries(saved).every(([k,r])=>r.video===videoPreview.records[k].video&&r.url===videoPreview.records[k].url)&&videoPreview.records.B.video.paused,'A/B/A reuses each source and pauses inactive video');
+    const state={ctx,transport,origin,offset,gain:gainResult,smoothing:smoothingOct};expandCurrentPage();
+    for(const page of [0,1,2]){pageControls(page);for(const [button,id]of [['fullCompare','spectrum'],['fullDiff','diffChart'],['fullWave','wave']]){$(button).click();const tabs=$('fullGraphTabs').getBoundingClientRect(),next=$('controlNext').getBoundingClientRect();assertTest(fullGraph.id===id&&$('graphDialog').open&&tabs.left>=next.right&&['fullWave','fullCompare','fullDiff'].every(k=>$(k).getBoundingClientRect().width>0)&&$('controlRow').scrollWidth<=$('controlRow').clientWidth,'right fixed WAVE/COMPARE/DIFF page '+page+' target '+id);assertTest(($('miniStrip').hidden)===(id!=='wave')&&$(id).getBoundingClientRect().height>innerHeight*(id==='wave'?.55:.8),'header-free graph area and waveform policy: '+id);}}
+    assertTest(ctx===state.ctx&&transport===state.transport&&origin===state.origin&&offset===state.offset&&gainResult===state.gain&&gainEnabled&&smoothingOct===state.smoothing,'three-way fullscreen switch preserves complete transport state');
+    await close('graphDialog');await waitFor(()=>!videoPreview.records.A.video.paused,'fullscreen return');assertTest(Object.entries(saved).every(([k,r])=>r.video===videoPreview.records[k].video&&r.url===videoPreview.records[k].url),'fullscreen return preserves both video elements and URLs');
+    pause(true);await waitFor(()=>!$('listenVideo').seeking&&$('listenVideo').currentTime<.03,'STOP video');assertTest($('listenVideo').paused,'STOP remains aligned after new switching path');
+    log('21-30 REGRESSIONS COMPLETE');
+  }catch(e){log('FAIL '+e.stack);}finally{await close('helpDialog');await close('aboutDialog');await close('graphDialog');pause();continuationTests.disabled=false;}
+});testBox.append(continuationTests);

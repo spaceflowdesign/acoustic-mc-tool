@@ -62,7 +62,7 @@ function drawReactiveGraph(){
   const rows=currentDifferences(pair.a,pair.b),zero=h-37;
   if(showInlineDiff){const scale=24/Math.max(12,...rows.map(row=>Math.abs(row.delta)));g.strokeStyle='#7293a3';g.beginPath();g.moveTo(l,zero);g.lineTo(r,zero);g.stroke();for(const row of rows){g.fillStyle=row.delta>=0?colors.B:colors.A;g.fillRect(x(row.low),zero-Math.max(0,row.delta)*scale,Math.max(1,x(row.high)-x(row.low)-1),Math.abs(row.delta)*scale);}
     const peak=[...rows].sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta))[0];if(peak){g.fillStyle='#ddf7ff';g.font='10px sans-serif';g.fillText(bandLabel(peak)+'  '+(peak.delta>=0?'B':'A')+' +'+Math.abs(peak.delta).toFixed(1)+' dB',l+5,43);g.strokeStyle='#a9ef54';g.strokeRect(Math.max(l,x(peak.low)),47,Math.min(r,x(peak.high))-Math.max(l,x(peak.low)),Math.max(1,b-47));}}
-  g.fillStyle=colors.A;g.fillText('A',r-70,42);g.fillStyle=colors.B;g.fillText('B',r-50,42);g.fillStyle='#acee4b';g.fillText('Δ',r-25,42);
+  for(const [side,at]of [['A',r-70],['B',r-50]]){g.fillStyle=colors[side];g.globalAlpha=playing&&playing!==side?.4:1;g.font=(playing===side?'bold 13':'11')+'px sans-serif';g.shadowColor=colors[side];g.shadowBlur=playing===side?12:0;g.fillText(side,at,42);}g.globalAlpha=1;g.shadowBlur=0;g.fillStyle='#acee4b';g.fillText('Δ',r-25,42);
   $('visualStatus').textContent=displayLevelScope()+' · '+(pair.live?'再生位置の解析':visualState.failed?'追従解析停止 · 平均解析':'平均解析')+' · '+($('freqMode').value==='standard'?'1/3 OCT':'MUSIC '+(bandSettings.custom?'CUSTOM':'DEFAULT'));
 }
 function drawMiniWave(){
