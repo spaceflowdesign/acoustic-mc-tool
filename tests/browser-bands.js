@@ -65,7 +65,7 @@ const pageFullscreenTests=makeAction('RUN PAGE FULLSCREEN TESTS',async()=>{
 const allSuites=makeAction('RUN ALL LANDSCAPE TESTS',async()=>{
   allSuites.disabled=true;
   try{if(!matchMedia('(orientation: landscape)').matches)throw Error('Landscape viewport required');
-    for(const button of [testButton,mp4Button,recoveryButton,workspaceButton,gainTests,bandsTests,pageFullscreenTests,videoTests,remuxProbeTests,extrasTests,presentationTests,continuationTests,diffPolishTests]){await button.onclick();if(/(^|\n)FAIL /.test(out.textContent))throw Error('Stop: suite failed');}
+    for(const button of [testButton,mp4Button,recoveryButton,workspaceButton,gainTests,bandsTests,pageFullscreenTests,videoTests,remuxProbeTests,extrasTests,presentationTests,continuationTests,diffPolishTests,fixedDiffTests]){await button.onclick();if(/(^|\n)FAIL /.test(out.textContent))throw Error('Stop: suite failed');}
     log('ALL LANDSCAPE TESTS COMPLETE: '+out.textContent.split('\n').filter(line=>line.startsWith('PASS ')).length+' checks');
   }catch(error){log('FAIL '+error.message);}finally{allSuites.disabled=false;}
 });testBox.append(allSuites);
@@ -149,9 +149,8 @@ const diffPolishTests=makeAction('RUN DIFF / HEADER / GLOSSARY TESTS',async()=>{
   diffPolishTests.disabled=true;const oldBands=JSON.stringify(bandSettings);
   try{
     pause(true);if(repeatEnabled)toggleRepeat();if(gainEnabled)toggleGainMatch();changePage('diff');bandSettings={edges:[...defaultEdges],custom:false};$('freqMode').value='music';
-    const head=document.querySelector('[data-panel=diff] .graph-heading'),title=head.querySelector('h2'),help=head.querySelector('.help-button');
-    assertTest(head.getBoundingClientRect().height===28&&help.getBoundingClientRect().height===28&&help.getBoundingClientRect().width===28,'normal DIFF heading and help match compact 28px page header');
-    assertTest(getComputedStyle(title).fontSize===getComputedStyle($('pageTitle')).fontSize&&getComputedStyle(title).marginTop==='0px','normal DIFF title matches page-title typography and spacing');
+    assertTest(!document.querySelector('[data-panel=diff] .graph-heading, [data-panel=diff] .graph-scope, [data-panel=diff] .help-button'),'normal DIFF duplicate heading, scope and help removed');
+    assertTest($('diffChart').getBoundingClientRect().height>=innerHeight*.36+47,'removed header height added to normal DIFF graph');
     for(const [side,freq]of [['A',240],['B',260]]){
       const bytes=await wav(4).arrayBuffer(),view=new DataView(bytes);let seed=123;
       for(let i=0;i<(bytes.byteLength-44)/4;i++){seed=(Math.imul(seed,1664525)+1013904223)>>>0;const sample=((seed/4294967296-.5)*.04+.2*Math.sin(i*2*Math.PI*freq/48000))*32767;view.setInt16(44+i*4,sample,true);view.setInt16(46+i*4,sample,true);}
@@ -176,3 +175,36 @@ const diffPolishTests=makeAction('RUN DIFF / HEADER / GLOSSARY TESTS',async()=>{
     $('aboutDialog').close();log('DIFF / HEADER / GLOSSARY TESTS COMPLETE');
   }catch(e){log('FAIL '+e.stack);}finally{for(const id of ['helpDialog','aboutDialog'])if($(id).open)$(id).close();pause();bandSettings=parseBandSettings(oldBands);renderBandControls();diffPolishTests.disabled=false;}
 });testBox.append(diffPolishTests);
+
+const fixedDiffTests=makeAction('RUN FIXED 10S DIFF DATA TESTS',async()=>{
+  fixedDiffTests.disabled=true;const sourceReader=diffSources,renderer=renderDiffFrame,oldBands=JSON.stringify(bandSettings);let captured;
+  const checksum=async values=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',new Float64Array(values).buffer))].map(n=>n.toString(16).padStart(2,'0')).join('');
+  try{
+    pause(true);if(repeatEnabled)toggleRepeat();changePage('diff');$('freqMode').value='music';bandSettings={edges:[...defaultEdges],custom:false};
+    for(const [side,freq,amp]of [['A',1015,.12],['B',1090,.23]]){
+      const bytes=await wav(14).arrayBuffer(),view=new DataView(bytes);let seed=991;
+      for(let i=0;i<(bytes.byteLength-44)/4;i++){seed=(Math.imul(seed,1664525)+1013904223)>>>0;const value=((seed/4294967296-.5)*.015+amp*Math.sin(i*2*Math.PI*freq/48000))*32767;view.setInt16(44+i*4,value,true);view.setInt16(46+i*4,value,true);}
+      await loadBlob(side,new Blob([bytes],{type:'audio/wav'}),'fixed-10s-'+side+'.wav');
+    }
+    setOffset(125);if(!gainEnabled)toggleGainMatch();cursor=10;update();await audio();
+    const a={asset:slots.A.asset,buffer:slots.A.buffer,power:await visualFFT(await readVisualWindow(slots.A,10,ctx)),fftSize:8192,at:10},b={asset:slots.B.asset,buffer:slots.B.buffer,power:await visualFFT(await readVisualWindow(slots.B,10+offset,ctx)),fftSize:8192,at:10};
+    // Test-only pinned reader: real PCM windows/worker FFT at the SAME common
+    // time for every render; no moving live clock or whole-file average fixture.
+    diffSources=()=>({a,b,live:true});renderDiffFrame=function(data,scope){captured=data;return renderer(data,scope);};
+    const state={ctx,transport,offset,at:position(),gain:gainResult,A:slots.A,B:slots.B,powerA:a.power.slice(),powerB:b.power.slice()},outputs=[];
+    for(const [label,width]of [['OFF',0],['1/6',1/6],['1/3',1/3]]){
+      $('smoothing').value=String(width);$('smoothing').dispatchEvent(new Event('change'));
+      const data=captured,ranked=[...data.rows].sort((x,y)=>Math.abs(y.delta)-Math.abs(x.delta)).slice(0,3),cards=[...$('diffFocus').children];
+      assertTest(data.meta.at===10&&data.meta.width===width&&data.points.length>1000&&ctx===state.ctx&&transport===state.transport&&position()===state.at&&offset===state.offset&&gainResult===state.gain&&gainEnabled,'actual renderer receives frequency-resolved '+label+' at fixed 10.000 s / unchanged gain+sync+transport');
+      assertTest(data.rows.every(row=>{let sum=0,n=0;for(const p of data.points){const w=Math.max(0,Math.min(row.high,p.high)-Math.max(row.low,p.low));sum+=p.delta*w;n+=w;}return Math.abs(row.delta-sum/n)<1e-10;})&&cards.every((card,i)=>Number(card.dataset.band)===ranked[i].f&&card.lastElementChild.textContent.includes(Math.abs(ranked[i].delta).toFixed(1)))&&focusedBand===ranked[0].f,'graph bars/cards/numbers/rank/highlight derive from same '+label+' point differences');
+      const pointHash=await checksum(data.points.map(p=>p.delta)),barHash=await checksum(data.rows.map(p=>p.delta));
+      log('FIXED_DIFF '+JSON.stringify({setting:label,at:data.meta.at,offset:data.meta.offset,matchA:data.meta.matchA,matchB:data.meta.matchB,count:data.points.length,first:data.points.slice(0,5).map(p=>[p.f,p.delta]),pointsSHA256:pointHash,barsSHA256:barHash,bars:data.rows.map(p=>p.delta)}));
+      outputs.push({data,pointHash,barHash,image:$('diffChart').toDataURL()});
+    }
+    for(const [i,j]of [[0,1],[1,2],[0,2]])assertTest(outputs[i].data!==outputs[j].data&&outputs[i].data.points!==outputs[j].data.points&&outputs[i].pointHash!==outputs[j].pointHash&&outputs[i].barHash!==outputs[j].barHash&&outputs[i].image!==outputs[j].image,'fixed 10s numeric render arrays AND pixels differ: '+i+' vs '+j);
+    $('smoothing').value='0';$('smoothing').dispatchEvent(new Event('change'));assertTest(await checksum(captured.points.map(p=>p.delta))===outputs[0].pointHash&&$('diffChart').toDataURL()===outputs[0].image,'fixed 10s OFF exact data and image restoration');
+    assertTest(slots.A===state.A&&slots.B===state.B&&a.power.every((v,i)=>v===state.powerA[i])&&b.power.every((v,i)=>v===state.powerB[i]),'fixed render never mutates source PCM/analysis assets');
+    document.querySelector('.top .help-button').click();const details=()=>[...$('helpDialog').querySelectorAll('button')].find(x=>x.textContent==='仕様・使い方・注意点を見る').click();details();[...$('helpDialog').querySelectorAll('button')].find(x=>x.textContent==='DIFF FOCUSとは？').click();details();[...$('helpDialog').querySelectorAll('button')].find(x=>x.textContent==='Smoothingとは？').click();assertTest(helpTrail.at(-1).topic==='Smoothing','common DIFF help reaches DIFF FOCUS then Smoothing');$('helpDialog').close();
+    log('FIXED 10S DIFF DATA TESTS COMPLETE');
+  }catch(e){log('FAIL '+e.stack);}finally{diffSources=sourceReader;renderDiffFrame=renderer;pause();bandSettings=parseBandSettings(oldBands);if($('helpDialog').open)$('helpDialog').close();fixedDiffTests.disabled=false;}
+});testBox.append(fixedDiffTests);

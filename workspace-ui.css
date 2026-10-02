@@ -29,11 +29,10 @@ dialog{color:#eafaff;background:#06111a;border:1px solid #1d6078;border-radius:1
 @media(orientation:portrait){#graphDialog[open]{display:none}}
 @media(prefers-reduced-motion:reduce){.fixed-design .pager{box-shadow:none}}
 .fixed-design #compareVisual .graph-tabs[hidden]{display:none!important}.fixed-design #spectrum{height:clamp(260px,36dvh,430px)}.smoothing-label{padding:0}.smoothing-label button{border:0;background:none;color:#eafbff;min-height:50px;text-align:left;padding:6px 9px;font-size:12px}.smoothing-label button small{font-size:10px}.mini-info{position:relative;padding-right:38px;min-height:16px}.inline-expand{position:absolute;right:-6px;top:-4px;width:36px;min-height:44px;padding:0;background:#031727b0;font-size:19px;border:0;z-index:1}#displayDialog #displayControls{margin-top:12px;grid-template-columns:1fr 1fr}#displayDialog #smoothing{width:100%}.fixed-design .brand{font-family:system-ui,sans-serif;font-weight:500}.fixed-design .gain-caption{display:none}
-.fixed-design .card:before,.fixed-design .card:after{display:none}.fixed-design [data-panel=diff] .card{padding:8px}.fixed-design [data-panel=diff] #diffChart{height:36dvh}
+.fixed-design .card:before,.fixed-design .card:after{display:none}.fixed-design [data-panel=diff] .card{padding:8px}.fixed-design [data-panel=diff] #diffChart{height:calc(36dvh + 48px)}
 #graphDialog .inline-expand{display:none}#graphDialog .mini-info{padding-right:0}.fixed-design .slotB b,.fixed-design .legendB{color:#ff43df}
 /* Page-header descriptions only; graph dimensions and control layout stay intact. */
 .fixed-design .listen-heading{font-size:10px;line-height:1.3;margin:3px 0}
-.fixed-design [data-panel=diff]>.card>.graph-scope{font-size:9px;line-height:1.3;margin:2px 0}
 /* LISTEN enlarges its waveform, not the spectrum; time/seek stay prominent. */
 #graphDialog.listen-fullscreen #miniWave,#graphDialog.listen-fullscreen #visualStatus{display:none}
 #graphDialog.listen-fullscreen #miniStrip .mini-info{font-size:16px;line-height:24px;min-height:24px}
@@ -47,10 +46,6 @@ dialog{color:#eafaff;background:#06111a;border:1px solid #1d6078;border-radius:1
 .small-transport{min-width:44px!important;min-height:44px!important;padding:4px 2px!important;font-size:16px!important;flex:0 0 44px!important}
 [data-repeat]{font-size:10px!important;min-height:44px}[data-repeat][aria-pressed=true]{border-color:#00e5ff;box-shadow:inset 0 0 10px #00d9ff55}
 .term-link{display:inline;border:0;border-bottom:1px dotted #00ddff;border-radius:0;color:#72e9ff;background:none;padding:3px;font-size:inherit}
-/* Only the normal DIFF subheading: match the compact page title, not fullscreen. */
-.fixed-design [data-panel=diff]>.card>.graph-heading{min-height:28px;gap:8px;margin:0 0 4px;justify-content:flex-start}
-.fixed-design [data-panel=diff]>.card>.graph-heading h2{font-size:14px;line-height:1.2;letter-spacing:.08em;margin:0}
-.fixed-design [data-panel=diff]>.card>.graph-heading .help-button{width:28px;min-width:28px;height:28px;min-height:28px;padding:0;margin:0;font-size:14px;line-height:1}
 #help-glossary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 #help-glossary h3{grid-column:1/-1;margin:0 0 2px}
 #help-glossary .term-link{display:flex;align-items:center;justify-content:center;min-height:44px;padding:8px 10px;border:1px solid #28768e;border-radius:9px;background:#081b29;overflow-wrap:anywhere;text-align:center}

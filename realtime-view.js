@@ -21,7 +21,37 @@ function smoothedDisplaySource(s){
 }
 function displayMatchOffset(side){return typeof playbackMatchGain==='function'?20*Math.log10(playbackMatchGain(side)):0;}
 function displayLevelScope(){return displayMatchOffset('A')||displayMatchOffset('B')?'GAIN MATCH後':'原音';}
-function currentDifferences(a=slots.A,b=slots.B){const rows=$('freqMode').value==='standard'?spectralDifferences(a,b,standard,band):displayDifferences(smoothedDisplaySource(a),smoothedDisplaySource(b),currentEdges());const delta=displayMatchOffset('B')-displayMatchOffset('A');return delta?rows.map(row=>({...row,delta:row.delta+delta})):rows;}
+function diffDisplayData(a=slots.A,b=slots.B){
+  const mode=$('freqMode').value,width=mode==='standard'?1/3:smoothingOct,matchA=displayMatchOffset('A'),matchB=displayMatchOffset('B');
+  const points=[],rows=[],meta={mode,width,matchA,matchB,offset,at:a?.at===b?.at?a?.at:null};
+  if(!a||!b)return {points,rows,meta};
+  if(mode==='standard'){
+    // STANDARD retains its fixed 1/3 octave centers and existing sound floor.
+    for(const row of spectralDifferences(a,b,standard,band))points.push({...row,delta:row.delta+matchB-matchA});
+    return {points,rows:points,meta};
+  }
+  const step=Math.max(a.buffer.sampleRate/a.fftSize,b.buffer.sampleRate/b.fftSize),end=Math.min(20000,a.buffer.sampleRate/2,b.buffer.sampleRate/2);
+  const gainA=10**(matchA/10),gainB=10**(matchB/10);
+  for(let i=Math.ceil(20/step);i*step<=end;i++){
+    const f=i*step,pa=displayPowerAt(a,f,width),pb=displayPowerAt(b,f,width);
+    if(pa===null||pb===null||!Number.isFinite(pa)||!Number.isFinite(pb)||pa<=1e-10||pb<=1e-10)continue;
+    // A constant per-side gain commutes exactly with linear power averaging:
+    // scale(mean(power)) == mean(scale(power)). Never alter original arrays.
+    const levelA=10*Math.log10(pa*gainA),levelB=10*Math.log10(pb*gainB);
+    points.push({f,low:Math.max(20,f-step/2),high:Math.min(end,f+step/2),delta:levelB-levelA});
+  }
+  // Preserve the existing six-bar/Custom design. Bars, cards and rankings are
+  // summaries of these SAME frequency-resolved differences, not a separate
+  // difference between two broad-band power averages (which erases detail).
+  const edges=currentEdges();
+  for(let i=0;i<edges.length-1;i++){
+    const low=edges[i],high=edges[i+1];if(high>end)continue;let sum=0,weight=0;
+    for(const p of points){const overlap=Math.max(0,Math.min(high,p.high)-Math.max(low,p.low));sum+=p.delta*overlap;weight+=overlap;}
+    if(weight)rows.push({f:Math.sqrt(low*high),low,high,delta:sum/weight});
+  }
+  return {points,rows,meta};
+}
+function currentDifferences(a=slots.A,b=slots.B){return diffDisplayData(a,b).rows;}
 function diffSources(){
   const a=visibleSource('A'),b=visibleSource('B');
   const live=!!playing&&a!==slots.A&&b!==slots.B&&a?.at===b?.at;

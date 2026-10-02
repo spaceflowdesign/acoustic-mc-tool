@@ -12,7 +12,7 @@ const beginnerTerms={
 const helpRoutes={
   LISTEN:{intro:'耳でA/Bを比較する画面です。動画入力時だけ映像も表示します。',topics:['ファイルと再生','同期','GAIN MATCH'],details:['PLAYで選択側を再生し、A/Bを切り替えて同じ共通区間を聴き比べます。波形・シークで位置を移動します。動画映像は選択側の音声時刻へ追従します。','REPEAT ONは同期後の共通区間を繰り返します。A/B・GAIN MATCH・SYNC offsetは維持します。切替時の読出し待ちを含むためギャップレス再生ではありません。','拡大は横画面の波形です。映像は隠すだけで再読込せず、音声出力経路は変更しません。']},
   COMPARE:{intro:'同じグラフ上でA/Bを見ながら比較します。',topics:['解析','GAIN MATCH','同期'],details:['再生中は同期した現在位置のFFT、停止時は全体から分散抽出した平均を表示します。音声の優劣を自動判定するものではありません。','MUSICのSmoothing初期値はOFFです。1/6・1/3 octaveを選べます。STANDARDは固定1/3 octaveで独立しています。表示の変更は再生音を加工しません。']},
-  DIFF:{intro:'AとBのどの周波数が変化したかを確認する画面です。',topics:['解析'],details:['再生中は同じ共通時刻のA/BをFFTし、B − Aを表示します。正はBが大きく、負はAが大きいことを示します。停止中または解析待ちは明示した全体平均です。','COMPAREと同じSmoothingでA/Bのパワーをならしてから差を求めます。グラフと数値は同じ帯域集計結果を使います。MUSICはDefault/Customの6帯域、STANDARDは固定1/3 octave。GAIN MATCH ONではグラフ・メーター・数値に再生と同じMatch Offsetを加えます。OFFで元表示へ戻り、元解析値とOriginal Levelは常に保持します。','無音近傍や両側で解析できない高域は差分候補にしません。差が大きいことが良い音を意味するわけではありません。']},
+  DIFF:{intro:'AとBのどの周波数が変化したかを確認する画面です。',topics:['解析'],details:['再生中は同じ共通時刻のA/BをFFTし、B − Aを表示します。正はBが大きく、負はAが大きいことを示します。停止中または解析待ちは明示した全体平均です。','COMPAREと同じSmoothingでA/Bのパワーをならしてから差を求めます。周波数点ごとにB−Aを計算し、その同じ差分を帯域内で平均した値をグラフ・数値・強調へ使います。OFFでは平滑化せず元FFT分解能で差分を計算します。MUSICはDefault/Customの6帯域、STANDARDは固定1/3 octave。GAIN MATCH ONではグラフ・メーター・数値に再生と同じMatch Offsetを加えます。OFFで元表示へ戻り、元解析値とOriginal Levelは常に保持します。','無音近傍や両側で解析できない高域は差分候補にしません。差が大きいことが良い音を意味するわけではありません。']},
   MEMO:{intro:'メモと写真を同じ日時の記録として残すMEMO + PHOTOです。',topics:[],details:['テキストの既存セッション保存は維持します。写真ライブラリ／カメラから画像を追加し「記録を保存」でメモと写真を一緒にこのブラウザへ保存します。','カメラは端末が対応する場合に背面カメラを要求します。Safariの権限と写真形式に依存します。表示できない写真も元ファイルを保存できます。','写真付き記録は端末内のIndexedDBです。ブラウザデータ消去や容量不足、プライベートモードでは保持できない場合があります。大切な写真は元データも保管してください。SAVE REFERENCEはAIR REC側に残っています。']}
 };
 let helpTrail=[],helpIndexReturn=null;
@@ -44,7 +44,7 @@ initWorkspace=function(){helpInit();
   const sectionText=pattern=>[...$('aboutDialog').querySelectorAll('section')].filter(s=>pattern.test(s.querySelector('h3')?.textContent||'')).flatMap(s=>[...s.querySelectorAll('p')].map(p=>p.textContent));
   for(const [topic,pattern]of [['FILE',/FILE比較/],['AIR REC',/AIR REC/],['Default / Custom',/Default帯域|Custom帯域/],['規格モード',/^規格モード$/]])helpRoutes[topic]={intro:topic+'の仕様と使い方を確認します。',topics:[],details:[...(helpText[topic]||[]),...sectionText(pattern)]};
   for(const topic of ['GAIN MATCH','AUTO SYNC','MANUAL SYNC'])helpRoutes[topic]={intro:(helpText[topic]||[]).join(' '),topics:[],details:helpText[topic]};
-  helpRoutes['DIFF FOCUS']=helpRoutes.DIFF;helpRoutes['MEMO + PHOTO']=helpRoutes.MEMO;
+  helpRoutes['DIFF FOCUS']={...helpRoutes.DIFF,topics:['Smoothing']};helpRoutes.DIFF.topics=['DIFF FOCUS'];helpRoutes['MEMO + PHOTO']=helpRoutes.MEMO;
   helpRoutes.Smoothing={intro:beginnerTerms.Smoothing,topics:['Default / Custom','規格モード'],details:helpRoutes.COMPARE.details};
   helpRoutes['解析'].topics=['Smoothing','Default / Custom','規格モード','DIFF FOCUS'];helpRoutes['ファイルと再生']={intro:'音声・動画をA/Bへ読み込み比較します。',topics:['FILE','AIR REC'],details:helpText['ファイルと再生']};
   for(const section of $('aboutDialog').querySelectorAll('section'))if(section.querySelector('h3')?.textContent==='DIFF FOCUS'){section.replaceChildren(element('h3',{},'DIFF FOCUS'));for(const text of helpRoutes.DIFF.details)section.append(helpParagraph(text));}

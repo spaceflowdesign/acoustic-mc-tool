@@ -387,3 +387,31 @@ New `RUN DIFF / HEADER / GLOSSARY TESTS` uses real imported stereo WAVs with mat
 Verification: new portrait suite at **390 × 844: 27/27 PASS**, with visual inspection of the normal DIFF header and glossary. Mandatory Node **7/7 suites PASS** (9/16/11/2/3/22/3 groups). Full existing browser regression is retained; physical iPhone Safari touch remains unverified, and the prior MOV EncodingError remains unresolved.
 
 Final browser aggregate at **844 × 390: 489 checks PASS** (462 retained + 27 new); additional **320 × 568: 27/27 PASS**. `git diff --check` PASS.
+
+## Fixed-position DIFF pipeline and duplicate-header removal (2026-10-02)
+
+Continues merged PR #14 (`4c3823ae146ed2d4f32f1596ad34e4caa5787afa`). The previous tests proved some smoothing changes, but did not enforce the newly specified order at a fixed current-time FFT window. The prior implementation smoothed A/B powers, averaged each side into six broad MUSIC bands, then subtracted the two band levels. Narrow changes inside a band can disappear during that pre-subtraction averaging. This was not merely a missing label update; the earlier band-boundary fixture did not adequately cover the user's requirement.
+
+`diffDisplayData` now creates fresh **frequency-resolved B−A points first** at the common available FFT resolution (OFF retains unsmoothed bin values). Each side uses its selected power smoothing and GAIN MATCH offset; constant power gain commutes with linear averaging, so multiplying the averaged power implements the same result as averaging gain-scaled source powers without copying PCM. The original sound-floor/Nyquist safeguards remain. Source arrays, audio gains and sync are not modified. No previously computed DIFF array is reused between settings.
+
+To keep the requested existing bar-chart design and Default/Custom band boundaries, the displayed bars are frequency-overlap-weighted means of these **same per-frequency delta-dB points**, computed AFTER subtraction. This is intentionally different from subtracting two broad-band energy levels, and can change the previous numerical band values. The renderer receives a single `{points, rows, meta}` object; bars, top-three cards, numeric meters, rankings and highlights all use its rows. COMPARE's inline DIFF uses the same pipeline. STANDARD retains fixed 1/3-octave centers. No line chart or new visual style is introduced.
+
+The normal DIFF card's dedicated help/title/status nodes are removed, not just hidden. Its canvas is 48 px taller; the common page header/help and the existing compact lower live/average message remain. The common help explicitly routes DIFF → DIFF FOCUS → Smoothing. Fullscreen behavior is unchanged.
+
+### Fixed 10.000-second evidence
+
+`RUN FIXED 10S DIFF DATA TESTS` imports two real 14-second stereo WAV fixtures (matching deterministic noise, A 1015 Hz / B 1090 Hz in the SAME music band). Production `readVisualWindow` and `visualFFT` obtain A at 10.000 s and B at 10.125 s. The test-only source reader pins those actual FFT arrays while paused at common 10.000 s, instead of allowing a live clock or whole-file average to change the input. Existing production paused-average behavior is unchanged.
+
+Across OFF → 1/6 → 1/3, A/B identities, original arrays, cursor=10, SYNC=+0.125 s, GAIN MATCH=ON, A offset=0 and B offset=−5.815082021899542 dB stay fixed. A wrapper captures the exact argument to `renderDiffFrame`. The test checks all three pairwise differences of **point arrays, bar arrays AND canvas images**, checks that cards/ranking/highlight derive from the same data, and verifies exact OFF restoration. The first few low-frequency points can legitimately match because an octave window there still contains one FFT bin; entire arrays are compared, not just those points.
+
+Recorded SHA-256 of the actual six **bar delta arrays**:
+
+| Setting | SHA-256 |
+| --- | --- |
+| OFF | `7689bdd06773113347b6d8c873be36a56748896a38d861c652c89e33ea6e2e55` |
+| 1/6 | `77f98149167ebe585095c68f79cb9d99db6f392772922e58cf9884f78cb7a43f` |
+| 1/3 | `fac22a2478538510e8a89b707afb08bb85fbfa5f2a3a3a5e6e3df6dcb61e9fd4` |
+
+`tests/fixed-diff-evidence.json` records full frequency-point checksums, first points, all six bar values and the fixed conditions. These are observed Chromium-run evidence, not cross-platform golden hashes. Sound-floor eligibility produces 3350 valid OFF points and 3410 for each smoothed width; 1/6 vs 1/3 still differs despite equal point counts.
+
+Verification: **500 browser checks PASS** at 844×390; normal portrait 390×844 **27 checks PASS**, plus visual inspection; mandatory Node **7/7 suites PASS** (9/16/11/2/3/22/4). Existing live-audio identity, GAIN, sync, video stability, repeat, photos, background recovery and MOV diagnostic regressions remain. Physical iPhone Safari is not verified here, and the existing MOV EncodingError remains unresolved.

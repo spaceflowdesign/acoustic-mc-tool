@@ -47,11 +47,10 @@ dialog{color:#eafaff;background:#06111a;border:1px solid #1d6078;border-radius:1
 @media(orientation:portrait){#graphDialog[open]{display:none}}
 @media(prefers-reduced-motion:reduce){.fixed-design .pager{box-shadow:none}}
 .fixed-design #compareVisual .graph-tabs[hidden]{display:none!important}.fixed-design #spectrum{height:clamp(260px,36dvh,430px)}.smoothing-label{padding:0}.smoothing-label button{border:0;background:none;color:#eafbff;min-height:50px;text-align:left;padding:6px 9px;font-size:12px}.smoothing-label button small{font-size:10px}.mini-info{position:relative;padding-right:38px;min-height:16px}.inline-expand{position:absolute;right:-6px;top:-4px;width:36px;min-height:44px;padding:0;background:#031727b0;font-size:19px;border:0;z-index:1}#displayDialog #displayControls{margin-top:12px;grid-template-columns:1fr 1fr}#displayDialog #smoothing{width:100%}.fixed-design .brand{font-family:system-ui,sans-serif;font-weight:500}.fixed-design .gain-caption{display:none}
-.fixed-design .card:before,.fixed-design .card:after{display:none}.fixed-design [data-panel=diff] .card{padding:8px}.fixed-design [data-panel=diff] #diffChart{height:36dvh}
+.fixed-design .card:before,.fixed-design .card:after{display:none}.fixed-design [data-panel=diff] .card{padding:8px}.fixed-design [data-panel=diff] #diffChart{height:calc(36dvh + 48px)}
 #graphDialog .inline-expand{display:none}#graphDialog .mini-info{padding-right:0}.fixed-design .slotB b,.fixed-design .legendB{color:#ff43df}
 /* Page-header descriptions only; graph dimensions and control layout stay intact. */
 .fixed-design .listen-heading{font-size:10px;line-height:1.3;margin:3px 0}
-.fixed-design [data-panel=diff]>.card>.graph-scope{font-size:9px;line-height:1.3;margin:2px 0}
 /* LISTEN enlarges its waveform, not the spectrum; time/seek stay prominent. */
 #graphDialog.listen-fullscreen #miniWave,#graphDialog.listen-fullscreen #visualStatus{display:none}
 #graphDialog.listen-fullscreen #miniStrip .mini-info{font-size:16px;line-height:24px;min-height:24px}
@@ -65,10 +64,6 @@ dialog{color:#eafaff;background:#06111a;border:1px solid #1d6078;border-radius:1
 .small-transport{min-width:44px!important;min-height:44px!important;padding:4px 2px!important;font-size:16px!important;flex:0 0 44px!important}
 [data-repeat]{font-size:10px!important;min-height:44px}[data-repeat][aria-pressed=true]{border-color:#00e5ff;box-shadow:inset 0 0 10px #00d9ff55}
 .term-link{display:inline;border:0;border-bottom:1px dotted #00ddff;border-radius:0;color:#72e9ff;background:none;padding:3px;font-size:inherit}
-/* Only the normal DIFF subheading: match the compact page title, not fullscreen. */
-.fixed-design [data-panel=diff]>.card>.graph-heading{min-height:28px;gap:8px;margin:0 0 4px;justify-content:flex-start}
-.fixed-design [data-panel=diff]>.card>.graph-heading h2{font-size:14px;line-height:1.2;letter-spacing:.08em;margin:0}
-.fixed-design [data-panel=diff]>.card>.graph-heading .help-button{width:28px;min-width:28px;height:28px;min-height:28px;padding:0;margin:0;font-size:14px;line-height:1}
 #help-glossary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 #help-glossary h3{grid-column:1/-1;margin:0 0 2px}
 #help-glossary .term-link{display:flex;align-items:center;justify-content:center;min-height:44px;padding:8px 10px;border:1px solid #28768e;border-radius:9px;background:#081b29;overflow-wrap:anywhere;text-align:center}
@@ -549,10 +544,13 @@ let focusedBand=null;
 function bandLabel(row){const label=f=>f>=1000?(f/1000).toFixed(f>=10000?0:1).replace(/\.0$/,'')+'k':Math.round(f);return label(row.low)+'–'+label(row.high)+' Hz'}
 function drawDiff(){
   if(!$('diffChart'))return;
-  const {a,b:sourceB,live}=diffSources(),rows=currentDifferences(a,sourceB);
+  const {a,b:sourceB,live}=diffSources();renderDiffFrame(diffDisplayData(a,sourceB),{a,live});
+}
+function renderDiffFrame(data,{a,live}){
+  const {rows}=data;
   const ranked=[...rows].sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta)).slice(0,3);
   if(!rows.some(r=>r.f===focusedBand))focusedBand=ranked[0]?.f??null;
-  const {g,w,h,l,r,t,b}=base('diffChart','B − A · dB / '+displayLevelScope()),range=Math.max(6,Math.ceil(Math.max(0,...rows.map(x=>Math.abs(x.delta)))/6)*6);
+  const {g,w,h,l,r,t,b}=base('diffChart','B − A · dB'),range=Math.max(6,Math.ceil(Math.max(0,...rows.map(x=>Math.abs(x.delta)))/6)*6);
   const x=f=>l+Math.log(f/20)/Math.log(1000)*(r-l),y=d=>(t+b)/2-d/range*(b-t)/2;
   g.font='10px sans-serif';g.lineWidth=1;
   for(const d of [-range,-range/2,0,range/2,range]){g.strokeStyle=d===0?'#7594a5':'#193544';g.beginPath();g.moveTo(l,y(d));g.lineTo(r,y(d));g.stroke();g.fillStyle='#9bb4c3';g.fillText((d>0?'+':'')+d,4,y(d)+4)}
@@ -562,7 +560,6 @@ function drawDiff(){
   ranked.forEach((row,i)=>{let btn=host.children[i];if(!btn){btn=document.createElement('button');btn.append(document.createElement('span'),document.createElement('b'));btn.onclick=()=>{focusedBand=Number(btn.dataset.band);drawDiff();};host.append(btn);}btn.dataset.band=row.f;btn.setAttribute('aria-pressed',String(row.f===focusedBand));btn.firstElementChild.textContent=bandLabel(row);const value=btn.lastElementChild;value.textContent=Math.abs(row.delta)<.05?'差 0.0 dB':(row.delta>0?'B':'A')+' +'+Math.abs(row.delta).toFixed(1)+' dB';value.style.color=row.delta>=0?colors.B:colors.A;});
   const scope=live?'現在位置 '+time(a.at)+' · 同期後 A/B':'全体平均 · '+(playing?'現在位置の解析待ち':'停止中');
   const smoothing=$('freqMode').value==='standard'?'1/3 Oct 固定':smoothingOct?'1/'+Math.round(1/smoothingOct)+' Oct':'OFF';
-  document.querySelector('[data-panel=diff] .graph-scope').textContent=scope+' · Smoothing '+smoothing+' · '+displayLevelScope()+' B − A';
   $('diffMessage').textContent=!slots.A||!slots.B?'A/Bを読み込むと差分を表示します。':!rows.length?'比較可能な有音帯域がありません。':`${scope} · Smoothing ${smoothing} · 差の大きい${ranked.length}帯域`;
   if(!rows.length){g.fillStyle='#7995a8';g.fillText('NO COMPARABLE BANDS',l+12,(t+b)/2-14)}
 }
@@ -731,8 +728,8 @@ function initWorkspace(){
   const format=element('div',{id:'graphFormat',class:'graph-format'});format.append(visualCard.querySelector('label[for=freqMode]'),$('freqMode'));graphTabs.append(format);
   visualCard.append(element('p',{class:'graph-scope'},'原音解析 · 全体から分散抽出'));graphHelp(visualCard,'解析');
   $('expandCompare').onclick=()=>expandGraph(compareView,compareView==='wave'?'WAVEFORM · A/B':'FREQUENCY · A/B');
-  const diff=element('section',{'data-panel':'diff',hidden:''},'<div class="card"><div class="graph-heading"><h2>DIFF FOCUS</h2></div><p class="graph-scope">原音の平均スペクトル差 / B − A · dB</p><div class="chartbox workspace-chart"><canvas id="diffChart" aria-label="AとBの周波数差分"></canvas></div><div id="diffFocus" class="diff-focus"></div><p id="diffMessage" class="diff-message"></p></div>');
-  compare.after(diff);helpText.DIFF=['同じ1/3オクターブ帯域内の平均スペクトルパワーを比較します。正の差はBが大きい、負の差はAが大きいことを示します。音の優劣や原因を判定する機能ではありません。','解析対象は各音源全体から分散抽出した最大64箇所です。同期後の共通区間だけを再解析した結果ではありません。GAIN MATCH ONでは表示計算に再生と同じ補正量を適用します。元解析データは保持します。','両方のサンプルレートで有効な帯域を比較します。片側でも解析値が−100 dBFS以下の帯域は差分候補から除外します。差が大きい最大3帯域を表示し、タップで強調できます。'];helpFooter(diff.firstElementChild,'DIFF');
+  const diff=element('section',{'data-panel':'diff',hidden:''},'<div class="card"><div class="chartbox workspace-chart"><canvas id="diffChart" aria-label="AとBの周波数差分"></canvas></div><div id="diffFocus" class="diff-focus"></div><p id="diffMessage" class="diff-message"></p></div>');
+  compare.after(diff);helpText.DIFF=['同じ1/3オクターブ帯域内の平均スペクトルパワーを比較します。正の差はBが大きい、負の差はAが大きいことを示します。音の優劣や原因を判定する機能ではありません。','解析対象は各音源全体から分散抽出した最大64箇所です。同期後の共通区間だけを再解析した結果ではありません。GAIN MATCH ONでは表示計算に再生と同じ補正量を適用します。元解析データは保持します。','両方のサンプルレートで有効な帯域を比較します。片側でも解析値が−100 dBFS以下の帯域は差分候補から除外します。差が大きい最大3帯域を表示し、タップで強調できます。'];
   // Memo and the inherited reference viewer are separate subviews, never stacked.
   const memoTabs=element('div',{class:'memo-tabs'},'<button class="alt" data-memo="memo" aria-pressed="true">MEMO</button><button class="alt" data-memo="reference" aria-pressed="false">REFERENCE</button>');history.prepend(memoTabs);
   const historyCards=history.querySelectorAll(':scope > .card');historyCards[0].id='memoCard';historyCards[1].id='referenceCard';
@@ -818,7 +815,37 @@ function smoothedDisplaySource(s){
 }
 function displayMatchOffset(side){return typeof playbackMatchGain==='function'?20*Math.log10(playbackMatchGain(side)):0;}
 function displayLevelScope(){return displayMatchOffset('A')||displayMatchOffset('B')?'GAIN MATCH後':'原音';}
-function currentDifferences(a=slots.A,b=slots.B){const rows=$('freqMode').value==='standard'?spectralDifferences(a,b,standard,band):displayDifferences(smoothedDisplaySource(a),smoothedDisplaySource(b),currentEdges());const delta=displayMatchOffset('B')-displayMatchOffset('A');return delta?rows.map(row=>({...row,delta:row.delta+delta})):rows;}
+function diffDisplayData(a=slots.A,b=slots.B){
+  const mode=$('freqMode').value,width=mode==='standard'?1/3:smoothingOct,matchA=displayMatchOffset('A'),matchB=displayMatchOffset('B');
+  const points=[],rows=[],meta={mode,width,matchA,matchB,offset,at:a?.at===b?.at?a?.at:null};
+  if(!a||!b)return {points,rows,meta};
+  if(mode==='standard'){
+    // STANDARD retains its fixed 1/3 octave centers and existing sound floor.
+    for(const row of spectralDifferences(a,b,standard,band))points.push({...row,delta:row.delta+matchB-matchA});
+    return {points,rows:points,meta};
+  }
+  const step=Math.max(a.buffer.sampleRate/a.fftSize,b.buffer.sampleRate/b.fftSize),end=Math.min(20000,a.buffer.sampleRate/2,b.buffer.sampleRate/2);
+  const gainA=10**(matchA/10),gainB=10**(matchB/10);
+  for(let i=Math.ceil(20/step);i*step<=end;i++){
+    const f=i*step,pa=displayPowerAt(a,f,width),pb=displayPowerAt(b,f,width);
+    if(pa===null||pb===null||!Number.isFinite(pa)||!Number.isFinite(pb)||pa<=1e-10||pb<=1e-10)continue;
+    // A constant per-side gain commutes exactly with linear power averaging:
+    // scale(mean(power)) == mean(scale(power)). Never alter original arrays.
+    const levelA=10*Math.log10(pa*gainA),levelB=10*Math.log10(pb*gainB);
+    points.push({f,low:Math.max(20,f-step/2),high:Math.min(end,f+step/2),delta:levelB-levelA});
+  }
+  // Preserve the existing six-bar/Custom design. Bars, cards and rankings are
+  // summaries of these SAME frequency-resolved differences, not a separate
+  // difference between two broad-band power averages (which erases detail).
+  const edges=currentEdges();
+  for(let i=0;i<edges.length-1;i++){
+    const low=edges[i],high=edges[i+1];if(high>end)continue;let sum=0,weight=0;
+    for(const p of points){const overlap=Math.max(0,Math.min(high,p.high)-Math.max(low,p.low));sum+=p.delta*overlap;weight+=overlap;}
+    if(weight)rows.push({f:Math.sqrt(low*high),low,high,delta:sum/weight});
+  }
+  return {points,rows,meta};
+}
+function currentDifferences(a=slots.A,b=slots.B){return diffDisplayData(a,b).rows;}
 function diffSources(){
   const a=visibleSource('A'),b=visibleSource('B');
   const live=!!playing&&a!==slots.A&&b!==slots.B&&a?.at===b?.at;
@@ -1317,7 +1344,7 @@ const beginnerTerms={
 const helpRoutes={
   LISTEN:{intro:'耳でA/Bを比較する画面です。動画入力時だけ映像も表示します。',topics:['ファイルと再生','同期','GAIN MATCH'],details:['PLAYで選択側を再生し、A/Bを切り替えて同じ共通区間を聴き比べます。波形・シークで位置を移動します。動画映像は選択側の音声時刻へ追従します。','REPEAT ONは同期後の共通区間を繰り返します。A/B・GAIN MATCH・SYNC offsetは維持します。切替時の読出し待ちを含むためギャップレス再生ではありません。','拡大は横画面の波形です。映像は隠すだけで再読込せず、音声出力経路は変更しません。']},
   COMPARE:{intro:'同じグラフ上でA/Bを見ながら比較します。',topics:['解析','GAIN MATCH','同期'],details:['再生中は同期した現在位置のFFT、停止時は全体から分散抽出した平均を表示します。音声の優劣を自動判定するものではありません。','MUSICのSmoothing初期値はOFFです。1/6・1/3 octaveを選べます。STANDARDは固定1/3 octaveで独立しています。表示の変更は再生音を加工しません。']},
-  DIFF:{intro:'AとBのどの周波数が変化したかを確認する画面です。',topics:['解析'],details:['再生中は同じ共通時刻のA/BをFFTし、B − Aを表示します。正はBが大きく、負はAが大きいことを示します。停止中または解析待ちは明示した全体平均です。','COMPAREと同じSmoothingでA/Bのパワーをならしてから差を求めます。グラフと数値は同じ帯域集計結果を使います。MUSICはDefault/Customの6帯域、STANDARDは固定1/3 octave。GAIN MATCH ONではグラフ・メーター・数値に再生と同じMatch Offsetを加えます。OFFで元表示へ戻り、元解析値とOriginal Levelは常に保持します。','無音近傍や両側で解析できない高域は差分候補にしません。差が大きいことが良い音を意味するわけではありません。']},
+  DIFF:{intro:'AとBのどの周波数が変化したかを確認する画面です。',topics:['解析'],details:['再生中は同じ共通時刻のA/BをFFTし、B − Aを表示します。正はBが大きく、負はAが大きいことを示します。停止中または解析待ちは明示した全体平均です。','COMPAREと同じSmoothingでA/Bのパワーをならしてから差を求めます。周波数点ごとにB−Aを計算し、その同じ差分を帯域内で平均した値をグラフ・数値・強調へ使います。OFFでは平滑化せず元FFT分解能で差分を計算します。MUSICはDefault/Customの6帯域、STANDARDは固定1/3 octave。GAIN MATCH ONではグラフ・メーター・数値に再生と同じMatch Offsetを加えます。OFFで元表示へ戻り、元解析値とOriginal Levelは常に保持します。','無音近傍や両側で解析できない高域は差分候補にしません。差が大きいことが良い音を意味するわけではありません。']},
   MEMO:{intro:'メモと写真を同じ日時の記録として残すMEMO + PHOTOです。',topics:[],details:['テキストの既存セッション保存は維持します。写真ライブラリ／カメラから画像を追加し「記録を保存」でメモと写真を一緒にこのブラウザへ保存します。','カメラは端末が対応する場合に背面カメラを要求します。Safariの権限と写真形式に依存します。表示できない写真も元ファイルを保存できます。','写真付き記録は端末内のIndexedDBです。ブラウザデータ消去や容量不足、プライベートモードでは保持できない場合があります。大切な写真は元データも保管してください。SAVE REFERENCEはAIR REC側に残っています。']}
 };
 let helpTrail=[],helpIndexReturn=null;
@@ -1349,7 +1376,7 @@ initWorkspace=function(){helpInit();
   const sectionText=pattern=>[...$('aboutDialog').querySelectorAll('section')].filter(s=>pattern.test(s.querySelector('h3')?.textContent||'')).flatMap(s=>[...s.querySelectorAll('p')].map(p=>p.textContent));
   for(const [topic,pattern]of [['FILE',/FILE比較/],['AIR REC',/AIR REC/],['Default / Custom',/Default帯域|Custom帯域/],['規格モード',/^規格モード$/]])helpRoutes[topic]={intro:topic+'の仕様と使い方を確認します。',topics:[],details:[...(helpText[topic]||[]),...sectionText(pattern)]};
   for(const topic of ['GAIN MATCH','AUTO SYNC','MANUAL SYNC'])helpRoutes[topic]={intro:(helpText[topic]||[]).join(' '),topics:[],details:helpText[topic]};
-  helpRoutes['DIFF FOCUS']=helpRoutes.DIFF;helpRoutes['MEMO + PHOTO']=helpRoutes.MEMO;
+  helpRoutes['DIFF FOCUS']={...helpRoutes.DIFF,topics:['Smoothing']};helpRoutes.DIFF.topics=['DIFF FOCUS'];helpRoutes['MEMO + PHOTO']=helpRoutes.MEMO;
   helpRoutes.Smoothing={intro:beginnerTerms.Smoothing,topics:['Default / Custom','規格モード'],details:helpRoutes.COMPARE.details};
   helpRoutes['解析'].topics=['Smoothing','Default / Custom','規格モード','DIFF FOCUS'];helpRoutes['ファイルと再生']={intro:'音声・動画をA/Bへ読み込み比較します。',topics:['FILE','AIR REC'],details:helpText['ファイルと再生']};
   for(const section of $('aboutDialog').querySelectorAll('section'))if(section.querySelector('h3')?.textContent==='DIFF FOCUS'){section.replaceChildren(element('h3',{},'DIFF FOCUS'));for(const text of helpRoutes.DIFF.details)section.append(helpParagraph(text));}
