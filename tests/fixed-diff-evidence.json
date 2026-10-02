@@ -1,0 +1,126 @@
+{
+  "description": "Desktop Chromium native PCM/FFT at fixed common time 10.000 s; renderer arguments captured, not labels. A=10.000 s B=10.125 s. Playback paused; test-only source reader pins actual readVisualWindow/visualFFT output. Generated 14 s stereo WAV: deterministic noise + A 1015 Hz (0.12), B 1090 Hz (0.23).",
+  "byteFormat": "SHA-256 over native little-endian Float64 delta arrays. Minor platform FFT rounding may change hashes; tests compare settings on the same run, not these recorded hashes.",
+  "results": [
+    {
+      "at": 10,
+      "bars": [
+        -2.287587657065771,
+        -6.081459616121584,
+        -3.1004536187562763,
+        -5.449699042066115,
+        -5.778475012953699,
+        -6.045609038325602
+      ],
+      "barsSHA256": "7689bdd06773113347b6d8c873be36a56748896a38d861c652c89e33ea6e2e55",
+      "count": 3350,
+      "first": [
+        [
+          23.4375,
+          -1.2065365166396165
+        ],
+        [
+          29.296875,
+          -15.052358737252234
+        ],
+        [
+          35.15625,
+          -3.983307049950184
+        ],
+        [
+          41.015625,
+          8.803500285582587
+        ],
+        [
+          46.875,
+          -3.6414489299809674
+        ]
+      ],
+      "matchA": 0,
+      "matchB": -5.815082021899542,
+      "offset": 0.125,
+      "pointsSHA256": "f4a7230af2d66eba4d0d401be28a27a20ef626f9619355468b1c5265eff7a854",
+      "setting": "OFF"
+    },
+    {
+      "at": 10,
+      "bars": [
+        -2.287587657065771,
+        -6.367381469361287,
+        -4.621636182608065,
+        -4.460369960905138,
+        -5.415574649915318,
+        -6.022642330395646
+      ],
+      "barsSHA256": "77f98149167ebe585095c68f79cb9d99db6f392772922e58cf9884f78cb7a43f",
+      "count": 3410,
+      "first": [
+        [
+          23.4375,
+          -1.2065365166396165
+        ],
+        [
+          29.296875,
+          -15.052358737252234
+        ],
+        [
+          35.15625,
+          -3.983307049950184
+        ],
+        [
+          41.015625,
+          8.803500285582587
+        ],
+        [
+          46.875,
+          -3.6414489299809674
+        ]
+      ],
+      "matchA": 0,
+      "matchB": -5.815082021899542,
+      "offset": 0.125,
+      "pointsSHA256": "6a0534dc1bd568fa1e20533599b9705b17c587056caefa9b357e948726b985ed",
+      "setting": "1/6"
+    },
+    {
+      "at": 10,
+      "bars": [
+        -2.4086754938054056,
+        -6.481280224367898,
+        -4.520308846738561,
+        -3.7294278312502502,
+        -5.403001615080491,
+        -6.0220295649804685
+      ],
+      "barsSHA256": "fac22a2478538510e8a89b707afb08bb85fbfa5f2a3a3a5e6e3df6dcb61e9fd4",
+      "count": 3410,
+      "first": [
+        [
+          23.4375,
+          -1.2065365166396165
+        ],
+        [
+          29.296875,
+          -15.052358737252234
+        ],
+        [
+          35.15625,
+          -3.983307049950184
+        ],
+        [
+          41.015625,
+          8.803500285582587
+        ],
+        [
+          46.875,
+          -3.6414489299809674
+        ]
+      ],
+      "matchA": 0,
+      "matchB": -5.815082021899542,
+      "offset": 0.125,
+      "pointsSHA256": "196ecafe014286bb626cad8fe0f77e72c5f4c7cb96101197748f2419d2ac298c",
+      "setting": "1/3"
+    }
+  ]
+}

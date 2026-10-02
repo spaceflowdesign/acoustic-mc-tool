@@ -37,3 +37,16 @@ for(const width of [1/6,1/3]){
   }
 }
 console.log('PASS shared smoothing kernel matches independent band sum and invalidates cached sample-rate metadata');
+c.a.at=c.b.at=10;c.match={A:1,B:10**(-2.7/20)};
+const frames=[];
+for(const width of [0,1/6,1/3]){
+  vm.runInContext('smoothingOct='+width,c);const data=c.diffDisplayData(c.a,c.b);frames.push(data);
+  assert.equal(data.meta.at,10);assert.equal(data.meta.width,width);assert.ok(data.points.length>1000);
+  for(const p of data.points){
+    const read=s=>{if(!width)return s.power[Math.round(p.f*s.fftSize/s.buffer.sampleRate)];const db=c.rangeLevel(s.power,s.buffer.sampleRate,s.fftSize,Math.max(20,p.f/2**(width/2)),Math.min(s.buffer.sampleRate/2,p.f*2**(width/2)));return 10**(db/10);};
+    assert.ok(Math.abs(p.delta-(10*Math.log10(read(c.b)*c.match.B**2)-10*Math.log10(read(c.a))))<1e-6);
+  }
+  for(const row of data.rows){let sum=0,weight=0;for(const p of data.points){const w=Math.max(0,Math.min(row.high,p.high)-Math.max(row.low,p.low));sum+=w*p.delta;weight+=w;}assert.ok(Math.abs(row.delta-sum/weight)<1e-10);}
+}
+for(const [i,j]of [[0,1],[1,2],[0,2]]){assert.notDeepEqual(frames[i].points,frames[j].points);assert.notDeepEqual(frames[i].rows,frames[j].rows);}
+console.log('PASS same 10s inputs: per-frequency matched A/B smoothing then B-A, every pair differs, bars derive only from these differences');
