@@ -373,3 +373,17 @@ Based on main after PR #12 merge (`13885ac8a64bb0cb1158f3a590951f263a77945c`). N
 - Final small-landscape **568 × 320: 174/174 new checks PASS**. A fractional-width overflow that could introduce a horizontal scrollbar was removed only within the fullscreen dialog. Portrait **390 × 844: 3/3 rotation-target checks PASS**; actual browser-button interaction also verifies page help → ABOUT → gating definition → Back → Close. These are viewport/pointer tests, not Safari touch-device certification.
 
 Physical iPhone Safari touch/video stability and memory use are **not verified here**. The reported MOV import EncodingError remains unresolved; no remux/parser/diagnostic code is changed by this continuation. Device acceptance must include the user's actual videos, continuous A/B playback, seeking, screen rotation/fullscreen round-trip and all help taps.
+
+## Three scoped follow-ups: DIFF header, smoothing and glossary (2026-10-02)
+
+Based on merged PR #13 (`f4278a58e84c47a31a73291d2c260b8a7cd6e9a5`). Fullscreen, video, help routing, audio/sync/gain algorithms, photo storage and MOV diagnostics are not changed.
+
+1. Normal DIFF FOCUS subheading/help now use a 28 px row and help circle, 14 px title, 4 px bottom margin, matching the compact page-title sizing. Selectors are scoped to the normal DIFF card heading; no fullscreen selector is changed.
+2. COMPARE and DIFF now call one display-only fractional-octave power-averaging kernel. Prefix sums are shared by immutable power array, and the smoothed-source cache also checks sample rate and FFT size. The previous code already had DIFF smoothing; a universally missing smoothing handler was not reproduced. This removes the separate implementations and explicitly verifies the actual rendered result, rather than claiming a new graph design or inventing a cause for the user's particular build. MUSIC stays OFF/1/6/1/3; STANDARD stays fixed 1/3. The existing six-band/custom aggregation and DIFF rendering are unchanged. Broad-band or proportional spectra can legitimately show small/no differences between smoothing widths.
+3. The nine glossary buttons use a separated two-column grid with 10 px gaps and >=44 px height. Only the glossary list is styled; inline terminology links and their beginner explanations/Back behavior are unchanged.
+
+New `RUN DIFF / HEADER / GLOSSARY TESTS` uses real imported stereo WAVs with matching deterministic background noise and different tones at 240/260 Hz, across a default band boundary. It asserts three distinct canvas images and numeric row sets for OFF/1/6/1/3, exact OFF image/value restoration, actual rendered bar heights, top-band numbers/ranks/highlight, unchanged live transport and original powers, compact header dimensions, glossary grid geometry and all nine destination/Back actions. Node tests compare the shared kernel against independent direct band sums, including cache reuse across different sample-rate metadata (floating point tolerance 1e-6 dB).
+
+Verification: new portrait suite at **390 × 844: 27/27 PASS**, with visual inspection of the normal DIFF header and glossary. Mandatory Node **7/7 suites PASS** (9/16/11/2/3/22/3 groups). Full existing browser regression is retained; physical iPhone Safari touch remains unverified, and the prior MOV EncodingError remains unresolved.
+
+Final browser aggregate at **844 × 390: 489 checks PASS** (462 retained + 27 new); additional **320 × 568: 27/27 PASS**. `git diff --check` PASS.

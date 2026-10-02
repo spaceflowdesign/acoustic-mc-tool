@@ -24,3 +24,16 @@ for(const modeName of ['music','standard'])for(const width of [0,1/6,1/3]){
 }
 assert.equal(other[43],.01);assert.equal(power[43],1e-7);
 console.log('PASS display gain uses playback coefficient for both sides, all smoothing/standard modes; OFF is exact; raw power immutable');
+mode.value='music';c.match={A:1,B:1};
+for(const width of [1/6,1/3]){
+  vm.runInContext('smoothingOct='+width,c);
+  for(const sr of [48000,96000,48000]){
+    const s={...c.b,buffer:{sampleRate:sr}},smooth=c.smoothedDisplaySource(s);
+    for(const i of [2,4,8,43,100,2000]){
+      const f=i*sr/s.fftSize,factor=2**(width/2),expected=c.rangeLevel(s.power,sr,s.fftSize,Math.max(20,f/factor),Math.min(sr/2,f*factor));
+      assert.ok(expected===null?smooth.power[i]===1e-12:Math.abs(10*Math.log10(smooth.power[i])-expected)<1e-6);
+      assert.ok(expected===null?c.plotLevel(s,f)===null:Math.abs(c.plotLevel(s,f)-expected)<1e-6);
+    }
+  }
+}
+console.log('PASS shared smoothing kernel matches independent band sum and invalidates cached sample-rate metadata');

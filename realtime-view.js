@@ -2,15 +2,22 @@ let bandSettings=parseBandSettings(null),smoothingOct=0,showInlineDiff=true;
 try{bandSettings=parseBandSettings(localStorage.getItem('amct_bands_v1'));}catch{}
 function currentEdges(){return bandSettings.custom?bandSettings.edges:defaultEdges;}
 const diffSmoothCache=new WeakMap();
+const displayPowerCache=new WeakMap();
+function displayPowerAt(s,f,width){
+  const sr=s.buffer.sampleRate,n=s.fftSize;if(f>sr/2)return null;
+  if(!width)return Math.max(1e-12,s.power[Math.round(f*n/sr)]||0);
+  let sum=displayPowerCache.get(s.power);if(!sum){sum=new Float64Array(s.power.length+1);for(let i=0;i<s.power.length;i++)sum[i+1]=sum[i]+s.power[i];displayPowerCache.set(s.power,sum);}
+  const factor=2**(width/2),low=Math.max(20,f/factor),high=Math.min(sr/2,f*factor),lo=Math.max(1,Math.ceil(low*n/sr)),hi=Math.min(s.power.length-1,Math.ceil(high*n/sr)-1);
+  return low>=high||hi<lo?null:Math.max(1e-12,(sum[hi+1]-sum[lo])/(hi-lo+1));
+}
 function smoothedDisplaySource(s){
   if(!s||!smoothingOct)return s;
-  const cached=diffSmoothCache.get(s.power);if(cached?.width===smoothingOct)return {...s,power:cached.power};
+  const cached=diffSmoothCache.get(s.power);if(cached?.width===smoothingOct&&cached.sr===s.buffer.sampleRate&&cached.n===s.fftSize)return {...s,power:cached.power};
   // Prefix sums keep display smoothing linear-time even on large fullscreen
   // plots. Never mutate the raw FFT, source PCM, or Web Audio nodes.
-  const sum=new Float64Array(s.power.length+1);for(let i=0;i<s.power.length;i++)sum[i+1]=sum[i]+s.power[i];
-  const sr=s.buffer.sampleRate,n=s.fftSize,factor=2**(smoothingOct/2);
-  const power=Float64Array.from(s.power,(_,i)=>{const f=i*sr/n,low=Math.max(20,f/factor),high=Math.min(sr/2,f*factor),lo=Math.max(1,Math.ceil(low*n/sr)),hi=Math.min(s.power.length-1,Math.ceil(high*n/sr)-1);return low>=high||hi<lo?1e-12:Math.max(1e-12,(sum[hi+1]-sum[lo])/(hi-lo+1));});
-  diffSmoothCache.set(s.power,{width:smoothingOct,power});return {...s,power};
+  const sr=s.buffer.sampleRate,n=s.fftSize;
+  const power=Float64Array.from(s.power,(_,i)=>displayPowerAt(s,i*sr/n,smoothingOct)??1e-12);
+  diffSmoothCache.set(s.power,{width:smoothingOct,sr,n,power});return {...s,power};
 }
 function displayMatchOffset(side){return typeof playbackMatchGain==='function'?20*Math.log10(playbackMatchGain(side)):0;}
 function displayLevelScope(){return displayMatchOffset('A')||displayMatchOffset('B')?'GAIN MATCH後':'原音';}
@@ -43,7 +50,7 @@ async function sampleVisual(){
   finally{visualState.busy=false;}
 }
 function visibleSource(k){const frame=visualState.frames[k];return playing&&frame?.asset===slots[k]?.asset&&Math.abs(frame.at-position())<.6?frame:slots[k];}
-function rawPlotLevel(s,f){if(!s||f>s.buffer.sampleRate/2)return null;if($('freqMode').value==='standard')return band(s.power,s.buffer.sampleRate,s.fftSize,f);const factor=2**(smoothingOct/2);if(smoothingOct)return rangeLevel(s.power,s.buffer.sampleRate,s.fftSize,Math.max(20,f/factor),Math.min(s.buffer.sampleRate/2,f*factor));const i=Math.round(f*s.fftSize/s.buffer.sampleRate);return 10*Math.log10(Math.max(1e-12,s.power[i]||0));}
+function rawPlotLevel(s,f){if(!s||f>s.buffer.sampleRate/2)return null;if($('freqMode').value==='standard')return band(s.power,s.buffer.sampleRate,s.fftSize,f);const power=displayPowerAt(s,f,smoothingOct);return power===null?null:10*Math.log10(power);}
 function plotLevel(s,f,side){const value=rawPlotLevel(s,f);return value===null?null:value+(side?displayMatchOffset(side):0);}
 function drawReactiveGraph(){
   if(!$('visualStatus')||$('spectrum').getBoundingClientRect().width===0)return;

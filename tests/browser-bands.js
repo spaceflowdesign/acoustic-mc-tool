@@ -65,7 +65,7 @@ const pageFullscreenTests=makeAction('RUN PAGE FULLSCREEN TESTS',async()=>{
 const allSuites=makeAction('RUN ALL LANDSCAPE TESTS',async()=>{
   allSuites.disabled=true;
   try{if(!matchMedia('(orientation: landscape)').matches)throw Error('Landscape viewport required');
-    for(const button of [testButton,mp4Button,recoveryButton,workspaceButton,gainTests,bandsTests,pageFullscreenTests,videoTests,remuxProbeTests,extrasTests,presentationTests,continuationTests]){await button.onclick();if(/(^|\n)FAIL /.test(out.textContent))throw Error('Stop: suite failed');}
+    for(const button of [testButton,mp4Button,recoveryButton,workspaceButton,gainTests,bandsTests,pageFullscreenTests,videoTests,remuxProbeTests,extrasTests,presentationTests,continuationTests,diffPolishTests]){await button.onclick();if(/(^|\n)FAIL /.test(out.textContent))throw Error('Stop: suite failed');}
     log('ALL LANDSCAPE TESTS COMPLETE: '+out.textContent.split('\n').filter(line=>line.startsWith('PASS ')).length+' checks');
   }catch(error){log('FAIL '+error.message);}finally{allSuites.disabled=false;}
 });testBox.append(allSuites);
@@ -144,3 +144,35 @@ const continuationTests=makeAction('RUN 21-30 REGRESSIONS',async()=>{
     log('21-30 REGRESSIONS COMPLETE');
   }catch(e){log('FAIL '+e.stack);}finally{await close('helpDialog');await close('aboutDialog');await close('graphDialog');pause();continuationTests.disabled=false;}
 });testBox.append(continuationTests);
+
+const diffPolishTests=makeAction('RUN DIFF / HEADER / GLOSSARY TESTS',async()=>{
+  diffPolishTests.disabled=true;const oldBands=JSON.stringify(bandSettings);
+  try{
+    pause(true);if(repeatEnabled)toggleRepeat();if(gainEnabled)toggleGainMatch();changePage('diff');bandSettings={edges:[...defaultEdges],custom:false};$('freqMode').value='music';
+    const head=document.querySelector('[data-panel=diff] .graph-heading'),title=head.querySelector('h2'),help=head.querySelector('.help-button');
+    assertTest(head.getBoundingClientRect().height===28&&help.getBoundingClientRect().height===28&&help.getBoundingClientRect().width===28,'normal DIFF heading and help match compact 28px page header');
+    assertTest(getComputedStyle(title).fontSize===getComputedStyle($('pageTitle')).fontSize&&getComputedStyle(title).marginTop==='0px','normal DIFF title matches page-title typography and spacing');
+    for(const [side,freq]of [['A',240],['B',260]]){
+      const bytes=await wav(4).arrayBuffer(),view=new DataView(bytes);let seed=123;
+      for(let i=0;i<(bytes.byteLength-44)/4;i++){seed=(Math.imul(seed,1664525)+1013904223)>>>0;const sample=((seed/4294967296-.5)*.04+.2*Math.sin(i*2*Math.PI*freq/48000))*32767;view.setInt16(44+i*4,sample,true);view.setInt16(46+i*4,sample,true);}
+      await loadBlob(side,new Blob([bytes],{type:'audio/wav'}),'boundary-'+side+'.wav');
+    }
+    const rawA=slots.A.power.slice(),rawB=slots.B.power.slice(),snapshots=[],numbers=[];
+    for(const width of [0,1/6,1/3]){
+      const canvas=$('diffChart'),g=canvas.getContext('2d'),native=g.fillRect,rects=[];g.fillRect=function(...args){rects.push(args);return native.apply(this,args);};
+      try{$('smoothing').value=String(width);$('smoothing').dispatchEvent(new Event('change'));}finally{g.fillRect=native;}
+      const rows=currentDifferences(),ranked=[...rows].sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta)).slice(0,3),range=Math.max(6,Math.ceil(Math.max(...rows.map(r=>Math.abs(r.delta)))/6)*6),height=Math.max(160,canvas.getBoundingClientRect().height),buttons=[...$('diffFocus').children];
+      assertTest(rects.slice(-rows.length).every((r,i)=>Math.abs(r[3]-Math.max(1,Math.abs(rows[i].delta)/range*(height-62)/2))<1e-7)&&buttons.every((b,i)=>Number(b.dataset.band)===ranked[i].f&&b.lastElementChild.textContent.includes(Math.abs(ranked[i].delta).toFixed(1)))&&focusedBand===ranked[0].f,'immediate actual DIFF bars/numbers/rank/highlight share smoothing '+width);
+      snapshots.push(canvas.toDataURL());numbers.push(JSON.stringify(rows));
+    }
+    assertTest(new Set(snapshots).size===3&&new Set(numbers).size===3,'OFF / 1/6 / 1/3 produce three distinct rendered graphs and band values for boundary fixture');
+    $('smoothing').value='0';$('smoothing').dispatchEvent(new Event('change'));assertTest($('diffChart').toDataURL()===snapshots[0]&&JSON.stringify(currentDifferences())===numbers[0],'OFF restores exact graph pixels and numeric values');
+    await play('A');await delay(150);const state={ctx,transport,origin,offset,gain:gainResult};for(const width of [1/6,1/3,0]){$('smoothing').value=String(width);$('smoothing').dispatchEvent(new Event('change'));}
+    assertTest(ctx===state.ctx&&transport===state.transport&&origin===state.origin&&offset===state.offset&&gainResult===state.gain&&slots.A.power.every((v,i)=>v===rawA[i])&&slots.B.power.every((v,i)=>v===rawB[i]),'smoothing preserves live audio route, sync, gain and original analysis');pause();
+    openDialog('aboutDialog');const glossary=$('help-glossary');glossary.scrollIntoView({block:'start'});
+    const chips=[...glossary.querySelectorAll('[data-help-term]')],first=chips[0].getBoundingClientRect(),second=chips[1].getBoundingClientRect();
+    assertTest(chips.length===9&&first.top===second.top&&second.left-first.right>=9&&chips[2].getBoundingClientRect().top>first.bottom,'glossary is a separated two-column wrapping grid');
+    for(const term of Object.keys(beginnerTerms)){const chip=chips.find(b=>b.dataset.helpTerm===term),r=chip.getBoundingClientRect();assertTest(r.height>=44&&r.width>=44,'44px glossary tap target: '+term);chip.click();assertTest($('helpDialog').open&&!$('aboutDialog').open&&$('helpDialog').querySelector('h2').textContent===term&&helpTrail.at(-1).term===term,'glossary chip opens correct explanation: '+term);$('helpDialog').querySelector('[data-help-back]').click();}
+    $('aboutDialog').close();log('DIFF / HEADER / GLOSSARY TESTS COMPLETE');
+  }catch(e){log('FAIL '+e.stack);}finally{for(const id of ['helpDialog','aboutDialog'])if($(id).open)$(id).close();pause();bandSettings=parseBandSettings(oldBands);renderBandControls();diffPolishTests.disabled=false;}
+});testBox.append(diffPolishTests);
