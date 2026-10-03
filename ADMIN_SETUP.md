@@ -1,30 +1,49 @@
-# Acoustic M.C access/admin setup
+# Acoustic M.C shared access/admin setup
 
-This repository now contains the client access layer and the separate administrator console. Production activation requires a Firebase project; no Firebase secret or Admin SDK credential belongs in this repository.
+The access/admin layer is shared by the Acoustic M.C product family. Tool is active now; Analyzer is reserved as a separate product and stays hidden until enabled.
+
+## Data model
+
+One Firebase identity may hold independent product access:
+
+```
+users/{uid}
+  email
+  accountState
+  products.tool
+    state
+    devices
+    lastSeenAt
+  products.analyzer
+    state
+    devices
+    lastSeenAt
+```
+
+Product states are independent: active / suspended / banned. A future global account suspension/ban can use accountState.
 
 ## Production setup
 
-1. Create/select the Firebase project for Acoustic M.C.
+1. Create/select one Firebase project for the Acoustic M.C product family.
 2. Enable Authentication with the release sign-in provider.
 3. Create Firestore.
-4. Copy the Firebase Web App public configuration into `firebase-config.js`.
-5. Deploy `firestore.rules`.
-6. Set the Firebase Authentication custom claim `admin: true` on the SPACE FLOW DESIGN administrator account using a trusted Admin SDK environment. Never set this from browser JavaScript.
-7. Re-authenticate the administrator after the claim is set.
-8. Open `admin.html` and confirm that a non-admin account cannot enter the console.
+4. Copy the Firebase Web App public configuration into firebase-config.js.
+5. Deploy firestore.rules.
+6. Set custom claim admin:true on the SPACE FLOW DESIGN administrator account from a trusted Admin SDK environment.
+7. Re-authenticate the administrator.
+8. Verify admin.html rejects a non-admin account.
 
-## Fixed product rules
+## Fixed rules
 
-- Maximum registered devices: 2.
-- Normal releases must not intentionally sign users out.
-- A third device is blocked until an existing device is revoked.
-- Users may revoke an old device when the limit is reached.
-- Account states: `active`, `suspended`, `banned`.
-- Admin may suspend, ban, or restore an account.
-- Audio/video/analysis data remain device-local. Firebase stores identity/access/operational metadata only.
-- Admin UI is separate from the user Tool.
-- Admin authorization is a server-verified Firebase custom claim, not knowledge of the admin URL.
+- Tool maximum registered devices: 2.
+- Analyzer has its own independent device set and can be enabled later.
+- Normal releases do not intentionally sign users out.
+- Users can revoke an old product-specific device when the limit is reached.
+- Admin can suspend, ban or restore each product independently.
+- Audio/video/analysis remain device-local. Firebase stores identity/access/operational metadata only.
+- ADMIN UI is one shared console; Analyzer is hidden until released.
+- ADMIN authorization uses a Firebase custom claim, never secrecy of the URL.
 
-## Important deployment note
+## Deployment note
 
-GitHub Pages is static hosting. The access layer must be wired into the public Tool entry before formal release so the Tool is not usable merely by bypassing a client-side screen. This commit deliberately does not change the completed audio/analysis implementation or its CSP until the Firebase project/provider is finalized.
+GitHub Pages is static hosting. Before formal release, wire the access layer into the public Tool entry and verify Firebase rules/claims on a real device. This multi-product change does not modify completed audio/analysis behavior.
