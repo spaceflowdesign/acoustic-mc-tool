@@ -1,49 +1,49 @@
-# Acoustic M.C shared access/admin setup
+# A.R.T shared access/admin setup
 
-The access/admin layer is shared by the Acoustic M.C product family. Tool is active now; Analyzer is reserved as a separate product and stays hidden until enabled.
+One administration foundation serves the full A.R.T hierarchy. Only released families/products are shown.
 
-## Data model
+## Hierarchy
 
-One Firebase identity may hold independent product access:
+```
+A.R.T
+├─ acoustic
+│  ├─ tool       Acoustic M.C Tool
+│  └─ analyzer   Acoustic M.C Analyzer
+├─ recording
+│  ├─ limited    reserved
+│  └─ full       reserved
+└─ treatment
+   ├─ limited    reserved
+   └─ full       reserved
+```
+
+R/T public product names are intentionally not fixed by this implementation. Internal IDs are placeholders that can be relabeled later.
+
+## User data
 
 ```
 users/{uid}
-  email
   accountState
-  products.tool
-    state
-    devices
-    lastSeenAt
-  products.analyzer
-    state
-    devices
-    lastSeenAt
+  families.acoustic.state
+  families.acoustic.products.tool.{state,devices,lastSeenAt}
+  families.acoustic.products.analyzer.{state,devices,lastSeenAt}
+  families.recording.products.limited/full
+  families.treatment.products.limited/full
 ```
 
-Product states are independent: active / suspended / banned. A future global account suspension/ban can use accountState.
+State can therefore be evaluated at account → family → product level. Product operations are implemented now; account/family state is reserved for future whole-A.R.T or A/R/T-level suspension/BAN.
+
+## Current release
+
+- A / Acoustic is enabled.
+- Acoustic M.C Tool is enabled.
+- Analyzer is reserved but hidden.
+- R and T are reserved and hidden.
+- Tool device limit remains 2.
+- Media/analysis remain local.
+- ADMIN remains one shared console.
+- Firebase custom claim admin:true protects ADMIN authority.
 
 ## Production setup
 
-1. Create/select one Firebase project for the Acoustic M.C product family.
-2. Enable Authentication with the release sign-in provider.
-3. Create Firestore.
-4. Copy the Firebase Web App public configuration into firebase-config.js.
-5. Deploy firestore.rules.
-6. Set custom claim admin:true on the SPACE FLOW DESIGN administrator account from a trusted Admin SDK environment.
-7. Re-authenticate the administrator.
-8. Verify admin.html rejects a non-admin account.
-
-## Fixed rules
-
-- Tool maximum registered devices: 2.
-- Analyzer has its own independent device set and can be enabled later.
-- Normal releases do not intentionally sign users out.
-- Users can revoke an old product-specific device when the limit is reached.
-- Admin can suspend, ban or restore each product independently.
-- Audio/video/analysis remain device-local. Firebase stores identity/access/operational metadata only.
-- ADMIN UI is one shared console; Analyzer is hidden until released.
-- ADMIN authorization uses a Firebase custom claim, never secrecy of the URL.
-
-## Deployment note
-
-GitHub Pages is static hosting. Before formal release, wire the access layer into the public Tool entry and verify Firebase rules/claims on a real device. This multi-product change does not modify completed audio/analysis behavior.
+Create one Firebase project for A.R.T, enable the chosen Authentication provider and Firestore, place the public Web App configuration in firebase-config.js, deploy firestore.rules, set admin:true on the SPACE FLOW DESIGN administrator from a trusted Admin SDK environment, then re-authenticate and test both admin and non-admin accounts.
