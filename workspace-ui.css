@@ -56,7 +56,7 @@ dialog{color:#eafaff;background:#06111a;border:1px solid #1d6078;border-radius:1
 #help-glossary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 #help-glossary h3{grid-column:1/-1;margin:0 0 2px}
 #help-glossary .term-link{display:flex;align-items:center;justify-content:center;min-height:44px;padding:8px 10px;border:1px solid #28768e;border-radius:9px;background:#081b29;overflow-wrap:anywhere;text-align:center}
-.photo-actions{display:flex;flex-wrap:wrap;gap:8px}.photo-actions button{min-height:44px}.photo-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.photo-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.photo-actions button{min-height:44px;width:100%;min-width:0}.photo-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 /* Fullscreen only: remove the title band, keep bottom-row exit and safe areas. */
 #graphDialog{overflow-x:hidden}
 #graphDialog .dialog-head{position:absolute;top:env(safe-area-inset-top);right:env(safe-area-inset-right);padding:0;height:auto;min-height:0;background:transparent;border:0;z-index:5;pointer-events:none}
