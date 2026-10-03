@@ -6,12 +6,12 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
       allow create: if signedIn() && request.auth.uid == uid
-                    && request.resource.data.state == 'active';
+                    && request.resource.data.accountState == 'active';
       allow update: if isAdmin() || (
         signedIn() && request.auth.uid == uid
-        && request.resource.data.state == resource.data.state
+        && request.resource.data.accountState == resource.data.accountState
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['email','devices','lastSeenAt','updatedAt'])
+             .hasOnly(['email','products','lastSeenAt','updatedAt'])
       );
       allow delete: if false;
     }
