@@ -11,7 +11,7 @@ service cloud.firestore {
         signedIn() && request.auth.uid == uid
         && request.resource.data.accountState == resource.data.accountState
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['email','products','lastSeenAt','updatedAt'])
+             .hasOnly(['email','families','lastSeenAt','updatedAt'])
       );
       allow delete: if false;
     }
