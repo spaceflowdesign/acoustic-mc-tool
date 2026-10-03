@@ -12,6 +12,14 @@ service cloud.firestore {
         && request.resource.data.accountState == resource.data.accountState
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['email','families','lastSeenAt','updatedAt'])
+        && request.resource.data.families.diff(resource.data.families).affectedKeys()
+             .hasOnly(['acoustic'])
+        && request.resource.data.families.acoustic.diff(resource.data.families.acoustic).affectedKeys()
+             .hasOnly(['products'])
+        && request.resource.data.families.acoustic.products.diff(resource.data.families.acoustic.products).affectedKeys()
+             .hasOnly(['tool'])
+        && request.resource.data.families.acoustic.products.tool.diff(resource.data.families.acoustic.products.tool).affectedKeys()
+             .hasOnly(['devices','lastSeenAt'])
       );
       allow delete: if false;
     }
