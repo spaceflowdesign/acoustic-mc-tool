@@ -17,5 +17,6 @@ window.AMC_ACCESS_CONFIG={
       full:{label:"T Full",enabled:false,maxDevices:2}
     }}
   },
-  adminEmail:"spaceflowdesign.jp@gmail.com"
+  adminEmail:"spaceflowdesign.jp@gmail.com",
+  legal:{termsVersion:"2026-10-03",privacyVersion:"2026-10-03"}
 };
