@@ -78,3 +78,8 @@ body[data-audible=A] .source-summary[data-source=A],body[data-audible=B] .source
 body[data-audible=A] .source-summary[data-source=A]{color:#00dfff}body[data-audible=B] .source-summary[data-source=B]{color:#ff43df}
 body[data-audible=A] .source-summary[data-source=B],body[data-audible=B] .source-summary[data-source=A]{opacity:.55}
 #memoRecords{display:grid;gap:8px}#draftPhotos figure,#memoRecordDialog figure{margin:5px 0;min-width:0}#draftPhotos img,#memoRecordDialog img{max-width:100%;max-height:40vh;object-fit:contain}figcaption{overflow-wrap:anywhere;font-size:11px}.saved-memo{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit}
+
+.feature-note textarea[readonly]{background:#03101a;color:#cfefff;border-color:#275b70;cursor:default}
+.feature-a textarea[readonly]{box-shadow:inset 3px 0 #00daff22}
+.feature-b textarea[readonly]{box-shadow:inset 3px 0 #ff43df22}
+.analysis-note{font-size:10px;line-height:1.5;color:#8daab9;margin:0 0 10px}
