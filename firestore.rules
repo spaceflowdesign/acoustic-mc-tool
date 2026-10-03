@@ -11,7 +11,7 @@ service cloud.firestore {
         signedIn() && request.auth.uid == uid
         && request.resource.data.accountState == resource.data.accountState
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['email','families','lastSeenAt','updatedAt'])
+             .hasOnly(['email','families','legal','lastSeenAt','updatedAt'])
         && request.resource.data.families.diff(resource.data.families).affectedKeys()
              .hasOnly(['acoustic'])
         && request.resource.data.families.acoustic.diff(resource.data.families.acoustic).affectedKeys()
@@ -20,6 +20,9 @@ service cloud.firestore {
              .hasOnly(['tool'])
         && request.resource.data.families.acoustic.products.tool.diff(resource.data.families.acoustic.products.tool).affectedKeys()
              .hasOnly(['devices','lastSeenAt'])
+        && request.resource.data.legal.keys().hasOnly(['termsVersion','privacyVersion','agreedAt'])
+        && request.resource.data.legal.termsVersion == '2026-10-03'
+        && request.resource.data.legal.privacyVersion == '2026-10-03'
       );
       allow delete: if false;
     }
