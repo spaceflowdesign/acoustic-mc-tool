@@ -1419,6 +1419,75 @@ initWorkspace=function(){helpInit();
   helpFooter($('displayDialog').querySelector('.dialog-body'),'解析');
 };
 
+// BEGIN session-restore
+// Local-only source/session persistence. No network or server storage.
+const sessionVault={db:null,currentWrite:Promise.resolve(),restoring:false};
+function sessionDB(){
+  if(sessionVault.db)return Promise.resolve(sessionVault.db);
+  return new Promise((resolve,reject)=>{
+    const request=indexedDB.open('amct_session_v1',1);
+    request.onupgradeneeded=()=>{const db=request.result;db.createObjectStore('sources',{keyPath:'id'});db.createObjectStore('state',{keyPath:'id'});};
+    request.onerror=()=>reject(request.error);
+    request.onsuccess=()=>{sessionVault.db=request.result;sessionVault.db.onversionchange=()=>{sessionVault.db.close();sessionVault.db=null;};resolve(sessionVault.db);};
+  });
+}
+function sessionTx(db,stores,mode,work){return new Promise((resolve,reject)=>{const tx=db.transaction(stores,mode);try{work(tx);}catch(e){tx.abort();reject(e);return;}tx.oncomplete=()=>resolve();tx.onerror=tx.onabort=()=>reject(tx.error||Error('端末内セッション保存に失敗しました'));});}
+async function persistSlotSource(k){
+  const s=slots[k];if(!s?.blob)return null;
+  if(s.restoreSourceId)return s.restoreSourceId;
+  const id=crypto.randomUUID(),record={id,name:s.name,inputKind:s.inputKind||'file',blob:s.blob,date:new Date().toISOString()};
+  const db=await sessionDB();await sessionTx(db,['sources'],'readwrite',tx=>tx.objectStore('sources').put(record));s.restoreSourceId=id;return id;
+}
+function sessionSnapshot(){
+  return {version:1,A:slots.A?.restoreSourceId||null,B:slots.B?.restoreSourceId||null,offset,gainEnabled,smoothingOct,freqMode:$('freqMode')?.value||'music',cursor:position(),savedAt:new Date().toISOString()};
+}
+async function persistSessionState(){
+  if(sessionVault.restoring)return;
+  try{
+    await Promise.all(['A','B'].map(k=>slots[k]?persistSlotSource(k):null));
+    const db=await sessionDB(),state={id:'current',...sessionSnapshot()};
+    await sessionTx(db,['state'],'readwrite',tx=>tx.objectStore('state').put(state));
+  }catch(error){if($('status'))say('現在のA/Bは使用できますが、再読込用の端末保存に失敗しました：'+error.message);}
+}
+function queueSessionSave(){sessionVault.currentWrite=sessionVault.currentWrite.then(()=>persistSessionState()).catch(()=>{});return sessionVault.currentWrite;}
+async function getSessionSource(id){if(!id)return null;const db=await sessionDB();return new Promise((resolve,reject)=>{const req=db.transaction('sources').objectStore('sources').get(id);req.onsuccess=()=>resolve(req.result||null);req.onerror=()=>reject(req.error);});}
+async function getCurrentSession(){const db=await sessionDB();return new Promise((resolve,reject)=>{const req=db.transaction('state').objectStore('state').get('current');req.onsuccess=()=>resolve(req.result||null);req.onerror=()=>reject(req.error);});}
+async function restoreSessionState(state,{announce=true}={}){
+  if(!state)return false;sessionVault.restoring=true;
+  try{
+    pause(true);
+    for(const k of ['A','B']){
+      const id=state[k],source=await getSessionSource(id);
+      if(!source){if(id)throw Error(k+'の保存元ファイルが端末内に見つかりません');continue;}
+      await originalSessionLoadBlob(k,source.blob,source.name,source.inputKind);if(slots[k])slots[k].restoreSourceId=id;
+    }
+    if(slots.A&&slots.B&&Number.isFinite(state.offset))originalSessionSetOffset(state.offset*1000);
+    if($('freqMode')&&state.freqMode){$('freqMode').value=state.freqMode;}
+    if($('smoothing')&&Number.isFinite(state.smoothingOct)){$('smoothing').value=String(state.smoothingOct);$('smoothing').dispatchEvent(new Event('change'));}
+    refreshGainMatch();if(!!state.gainEnabled!==gainEnabled&&gainResult?.valid)originalSessionToggleGain();
+    const [lo,hi]=limits();cursor=Math.max(lo,Math.min(Number.isFinite(state.cursor)?state.cursor:lo,hi));update();draw();if(typeof refreshAnalysisNotes==='function')refreshAnalysisNotes();
+    if(announce)say('保存したA/B・SYNC・GAIN MATCH・表示条件を端末内データから復帰しました。');
+    return true;
+  }finally{sessionVault.restoring=false;queueSessionSave();}
+}
+async function restoreLastSession(){
+  try{const state=await getCurrentSession();if(state?.A||state?.B)await restoreSessionState(state,{announce:false});}
+  catch(error){if($('status'))say('前回セッションを自動復帰できませんでした：'+error.message);}
+}
+const originalSessionLoadBlob=loadBlob;
+loadBlob=function(k,blob,name,inputKind='file'){return originalSessionLoadBlob(k,blob,name,inputKind).then(async value=>{if(slots[k]?.blob===blob){await persistSlotSource(k);await queueSessionSave();}return value;});};
+const originalSessionSetOffset=setOffset;
+setOffset=function(v){const result=originalSessionSetOffset(v);queueSessionSave();return result;};
+const originalSessionToggleGain=toggleGainMatch;
+toggleGainMatch=function(){const result=originalSessionToggleGain();queueSessionSave();return result;};
+document.addEventListener('change',e=>{if(e.target?.id==='smoothing'||e.target?.id==='freqMode')queueSessionSave();});
+document.addEventListener('click',e=>{if(e.target?.id==='clearA'||e.target?.id==='clearB')setTimeout(()=>queueSessionSave(),0);});
+window.addEventListener('pagehide',()=>{void queueSessionSave();});
+const sessionInit=initWorkspace;
+initWorkspace=function(){sessionInit();queueMicrotask(()=>void restoreLastSession());};
+
+// END session-restore
+
 const memoPhotos={db:null,draft:[],urls:[],viewUrls:[],saving:false};
 function analysisBandName(row){return bandLabel(row)}
 function analysisContext(meta){
@@ -1454,7 +1523,8 @@ async function addMemoPhotos(files){
 }
 async function saveMemoRecord(){
   if(memoPhotos.saving)return;memoPhotos.saving=true;$('saveMemoRecord').disabled=true;
-  const id=crypto.randomUUID(),photos=[...memoPhotos.draft],notes=currentAnalysisNotes(),record={id,date:new Date().toISOString(),analysisA:notes.A,analysisB:notes.B,memo:$('memo').value,photos:photos.map((p,i)=>({key:id+':'+i,name:p.name}))};
+  await queueSessionSave();
+  const id=crypto.randomUUID(),photos=[...memoPhotos.draft],notes=currentAnalysisNotes(),session=sessionSnapshot(),record={id,date:new Date().toISOString(),analysisA:notes.A,analysisB:notes.B,memo:$('memo').value,session,photos:photos.map((p,i)=>({key:id+':'+i,name:p.name}))};
   try{const db=await memoDB();await memoTransaction(db,['records','photos'],'readwrite',tx=>{tx.objectStore('records').put(record);photos.forEach((p,i)=>tx.objectStore('photos').put(p.blob,id+':'+i));});memoPhotos.draft=memoPhotos.draft.filter(p=>!photos.includes(p));renderDraftPhotos();$('photoStatus').textContent='A/B解析・USER MEMO・写真を同じ記録として端末内に保存しました。';await listMemoRecords();return record;}
   catch(error){$('photoStatus').textContent='保存できません。メモと添付は画面に保持しています：'+error.message;return null;}
   finally{memoPhotos.saving=false;$('saveMemoRecord').disabled=false;}
@@ -1462,7 +1532,10 @@ async function saveMemoRecord(){
 async function listMemoRecords(){try{const db=await memoDB(),records=await new Promise((resolve,reject)=>{const req=db.transaction('records').objectStore('records').getAll();req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});const host=$('memoRecords');host.replaceChildren();for(const r of records.sort((a,b)=>b.date.localeCompare(a.date)))host.append(makeAction(new Date(r.date).toLocaleString()+' · 写真 '+r.photos.length+'枚',()=>openMemoRecord(r),{'data-record-id':r.id}));}catch(error){$('photoStatus').textContent='写真付き記録を開けません：'+error.message;}}
 let photoViewGeneration=0;
 async function openMemoRecord(record){
-  const generation=++photoViewGeneration;for(const url of memoPhotos.viewUrls)URL.revokeObjectURL(url);memoPhotos.viewUrls=[];const host=$('memoRecordDialog').querySelector('.dialog-body');host.replaceChildren();const text=element('pre',{class:'saved-memo'});text.textContent=new Date(record.date).toLocaleString()+'\n\nA · Acoustic M.C ANALYSIS\n'+(record.analysisA||record.featureA||'—')+'\n\nB · Acoustic M.C ANALYSIS\n'+(record.analysisB||record.featureB||'—')+'\n\nUSER MEMO\n'+(record.memo||'—');host.append(text);openDialog('memoRecordDialog');
+  const generation=++photoViewGeneration;for(const url of memoPhotos.viewUrls)URL.revokeObjectURL(url);memoPhotos.viewUrls=[];const host=$('memoRecordDialog').querySelector('.dialog-body');host.replaceChildren();const text=element('pre',{class:'saved-memo'});text.textContent=new Date(record.date).toLocaleString()+'\n\nA · Acoustic M.C ANALYSIS\n'+(record.analysisA||record.featureA||'—')+'\n\nB · Acoustic M.C ANALYSIS\n'+(record.analysisB||record.featureB||'—')+'\n\nUSER MEMO\n'+(record.memo||'—');host.append(text);
+  if(record.session?.A||record.session?.B){const restore=makeAction('この記録のA/B状態を復帰',async()=>{restore.disabled=true;try{await restoreSessionState(record.session);$('memo').value=record.memo||'';try{sessionStorage.setItem('amct_memo_v1',$('memo').value)}catch{}refreshAnalysisNotes();$('memoRecordDialog').close();changePage('compare');}catch(error){restore.disabled=false;host.append(element('p',{class:'restore-error'},'復帰できません：'+error.message));}});host.append(restore);}
+  else host.append(element('p',{class:'analysis-note'},'この記録は旧形式のためA/B状態の復帰情報はありません。'));
+  openDialog('memoRecordDialog');
   try{const db=await memoDB();for(const p of record.photos){const blob=await new Promise((resolve,reject)=>{const req=db.transaction('photos').objectStore('photos').get(p.key);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});if(generation!==photoViewGeneration)return;if(blob)host.append(photoImage({name:p.name,blob},memoPhotos.viewUrls));else host.append(element('p',{},'写真データが見つかりません。'));}}
   catch(error){if(generation===photoViewGeneration)host.append(element('p',{},'写真を開けません：'+error.message));}
 }
@@ -1475,13 +1548,14 @@ initWorkspace=function(){photoInit();
   const card=$('memoCard');card.querySelector('h2').textContent='MEMO + PHOTO';card.querySelector('.help-button').setAttribute('aria-label','MEMO + PHOTOの説明');
   const memo=$('memo');const featureBox=element('div',{class:'ab-feature-notes'},'<div class="feature-note feature-a"><label for="analysisA"><b>A</b> Acoustic M.C ANALYSIS</label><textarea id="analysisA" rows="5" readonly aria-readonly="true"></textarea></div><div class="feature-note feature-b"><label for="analysisB"><b>B</b> Acoustic M.C ANALYSIS</label><textarea id="analysisB" rows="5" readonly aria-readonly="true"></textarea></div></div><p class="analysis-note">Acoustic M.CがDIFFの相対差を測定値として要約します。音の優劣や原因は判定しません。</p>');
   memo.before(featureBox);const memoLabel=card.querySelector('label[for="memo"]');if(memoLabel)memoLabel.textContent='USER MEMO / ユーザーメモ';memo.setAttribute('placeholder','聴感・変更内容・比較条件などを自由に記録');refreshAnalysisNotes();
-  const picker=element('div',{class:'photo-actions'},'<button id="photoCamera" class="alt">カメラで写真撮影</button><button id="photoLibrary" class="alt">写真ライブラリから追加</button><input id="cameraPhotoInput" type="file" accept="image/*" capture="environment" hidden><input id="libraryPhotoInput" type="file" accept="image/*" multiple hidden><button id="saveMemoRecord" class="alt">記録を保存</button>');card.append(picker,element('p',{id:'photoStatus',role:'status'},'写真は「記録を保存」でA/B解析・USER MEMO・日時を一緒に保存します。'),element('div',{id:'draftPhotos',class:'photo-grid'}),element('h3',{},'保存した記録'),element('div',{id:'memoRecords'}));
+  const picker=element('div',{class:'photo-actions'},'<button id="photoCamera" class="alt">カメラで写真撮影</button><button id="photoLibrary" class="alt">写真ライブラリから追加</button><input id="cameraPhotoInput" type="file" accept="image/*" capture="environment" hidden><input id="libraryPhotoInput" type="file" accept="image/*" multiple hidden><button id="saveMemoRecord" class="alt">記録を保存</button>');card.append(picker,element('p',{id:'photoStatus',role:'status'},'「記録を保存」でA/B解析・USER MEMO・写真・現在のA/B/SYNC/GAIN/表示条件を端末内に保存します。'),element('div',{id:'draftPhotos',class:'photo-grid'}),element('h3',{},'保存した記録'),element('div',{id:'memoRecords'}));
   for(const [button,input]of [['photoCamera','cameraPhotoInput'],['photoLibrary','libraryPhotoInput']]){$(button).onclick=()=>$(input).click();$(input).onchange=async e=>{const files=Array.from(e.target.files||[]);try{await addMemoPhotos(files);}finally{e.target.value='';}};}
   $('saveMemoRecord').onclick=saveMemoRecord;addDialog('memoRecordDialog','MEMO + PHOTO').addEventListener('close',()=>{photoViewGeneration++;for(const url of memoPhotos.viewUrls)URL.revokeObjectURL(url);memoPhotos.viewUrls=[];});void listMemoRecords();
 };
 
 const analysisShowWorkspacePage=showWorkspacePage;
 showWorkspacePage=function(p){analysisShowWorkspacePage(p);if(p==='history')refreshAnalysisNotes();};
+
 
 
 

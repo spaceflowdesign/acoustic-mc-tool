@@ -415,3 +415,15 @@ Recorded SHA-256 of the actual six **bar delta arrays**:
 `tests/fixed-diff-evidence.json` records full frequency-point checksums, first points, all six bar values and the fixed conditions. These are observed Chromium-run evidence, not cross-platform golden hashes. Sound-floor eligibility produces 3350 valid OFF points and 3410 for each smoothed width; 1/6 vs 1/3 still differs despite equal point counts.
 
 Verification: **500 browser checks PASS** at 844×390; normal portrait 390×844 **27 checks PASS**, plus visual inspection; mandatory Node **7/7 suites PASS** (9/16/11/2/3/22/4). Existing live-audio identity, GAIN, sync, video stability, repeat, photos, background recovery and MOV diagnostic regressions remain. Physical iPhone Safari is not verified here, and the existing MOV EncodingError remains unresolved.
+
+
+## Physical iPhone acceptance update (2026-10-03)
+
+Current real-device status supersedes older unresolved notes above:
+
+- iPhone Safari MOV/video import: **confirmed working on the user's real device**. Historical EncodingError investigation remains useful background only and is no longer an active blocker.
+- DIFF Smoothing: **confirmed corrected on the user's real device** after the continuous frequency-resolved DIFF update.
+- Saved MEMO record reopen: **confirmed through reopening the saved record** on the user's real device.
+- Long-duration work-session use: **currently no issue observed by the user while using the Tool during normal work**. Continue treating this as ongoing endurance observation rather than a reproduced defect.
+- Remaining real-device issue identified on 2026-10-03: browser page reload clears selected A/B file/video state even though saved MEMO records remain. The session-restore implementation added after this note persists source Blobs and comparison state in local IndexedDB so reload and saved-record restore can rebuild A/B without asking the user to manually reselect files.
+- All persistence remains device-local. No server, external API, cloud storage, operator-side storage cost, or recurring service fee is introduced.
