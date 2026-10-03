@@ -5,13 +5,15 @@ function drawDiff(){
   const {a,b:sourceB,live}=diffSources();renderDiffFrame(diffDisplayData(a,sourceB),{a,live});
 }
 function renderDiffFrame(data,{a,live}){
-  const {points,rows}=data;
+  const {points,rows,meta}=data;
   const ranked=[...rows].sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta)).slice(0,3);
   if(!rows.some(r=>r.f===focusedBand))focusedBand=ranked[0]?.f??null;
   const trace=points.filter(p=>Number.isFinite(p.f)&&Number.isFinite(p.delta)&&p.f>=20&&p.f<=20000);
   const peak=Math.max(0,...trace.map(p=>Math.abs(p.delta)),...rows.map(p=>Math.abs(p.delta)));
   const range=Math.max(6,Math.ceil(peak/6)*6);
+  const gainState=(Math.abs(meta.matchA)>1e-9||Math.abs(meta.matchB)>1e-9)?`GAIN MATCH ON · A ${meta.matchA>=0?'+':''}${meta.matchA.toFixed(1)} / B ${meta.matchB>=0?'+':''}${meta.matchB.toFixed(1)} dB`:'GAIN MATCH OFF · 原音差';
   const {g,w,h,l,r,t,b}=base('diffChart','B − A · dB');
+  g.font='bold 10px sans-serif';g.fillStyle=(Math.abs(meta.matchA)>1e-9||Math.abs(meta.matchB)>1e-9)?'#8ff7ff':'#98aebb';g.fillText(gainState,l,28);
   const x=f=>l+Math.log(f/20)/Math.log(1000)*(r-l),y=d=>(t+b)/2-d/range*(b-t)/2,zero=y(0);
   g.font='10px sans-serif';g.lineWidth=1;
   for(const d of [-range,-range/2,0,range/2,range]){g.strokeStyle=d===0?'#b8d7e6':'#193544';g.lineWidth=d===0?1.5:1;g.beginPath();g.moveTo(l,y(d));g.lineTo(r,y(d));g.stroke();g.fillStyle=d===0?'#d9f5ff':'#9bb4c3';g.fillText((d>0?'+':'')+d,4,y(d)+4)}
@@ -35,6 +37,6 @@ function renderDiffFrame(data,{a,live}){
   ranked.forEach((row,i)=>{let btn=host.children[i];if(!btn){btn=document.createElement('button');btn.append(document.createElement('span'),document.createElement('b'));btn.onclick=()=>{focusedBand=Number(btn.dataset.band);drawDiff();};host.append(btn);}btn.dataset.band=row.f;btn.setAttribute('aria-pressed',String(row.f===focusedBand));btn.firstElementChild.textContent=bandLabel(row);const value=btn.lastElementChild;value.textContent=Math.abs(row.delta)<.05?'差 0.0 dB':(row.delta>0?'B':'A')+' +'+Math.abs(row.delta).toFixed(1)+' dB';value.style.color=row.delta>=0?colors.B:colors.A;});
   const scope=live?'現在位置 '+time(a.at)+' · 同期後 A/B':'全体平均 · '+(playing?'現在位置の解析待ち':'停止中');
   const smoothing=$('freqMode').value==='standard'?'1/3 Oct 固定':smoothingOct?'1/'+Math.round(1/smoothingOct)+' Oct':'OFF';
-  $('diffMessage').textContent=!slots.A||!slots.B?'A/Bを読み込むと差分を表示します。':!rows.length?'比較可能な有音帯域がありません。':`${scope} · Smoothing ${smoothing} · 差の大きい${ranked.length}帯域`;
+  $('diffMessage').textContent=!slots.A||!slots.B?'A/Bを読み込むと差分を表示します。':!rows.length?'比較可能な有音帯域がありません。':`${scope} · ${gainState} · Smoothing ${smoothing} · 差の大きい${ranked.length}帯域`;
   if(!trace.length){g.fillStyle='#7995a8';g.fillText('NO COMPARABLE BANDS',l+12,(t+b)/2-14)}
 }
