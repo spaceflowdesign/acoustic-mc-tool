@@ -1,5 +1,5 @@
 /* A.R.T shared access configuration. Public Firebase web config only. */
-window.AMC_FIREBASE_CONFIG={apiKey:"AIzaSyCcYyMxyGKMog1jXBFGcgbXrvZGvji_TFE",authDomain:"art-admin-ba592.firebaseapp.com",projectId:"art-admin-ba592",appId:"1:333091136127:web:ded2cbd4325b218f0f954a"};
+window.AMC_FIREBASE_CONFIG={apiKey:"AIzaSyCcYyMxyGKMog1jXBFGcgbXrvZGvji_TFE",authDomain:"art-admin-ba592.firebaseapp.com",projectId:"art-admin-ba592",appId:"1:333091136127:web:ded2cbd4325b218f0f954a",measurementId:"G-4DF7HY7Y1G"};
 window.AMC_ACCESS_CONFIG={
   familyId:"acoustic",
   productId:"tool",
@@ -18,5 +18,5 @@ window.AMC_ACCESS_CONFIG={
     }}
   },
   adminEmail:"spaceflowdesign.jp@gmail.com",
-  legal:{termsVersion:"2026-10-03",privacyVersion:"2026-10-03"}
+  legal:{termsVersion:"2026-10-03",privacyVersion:"2026-10-06"}
 };
