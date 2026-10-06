@@ -24,6 +24,9 @@ The Worker requires a valid Firebase ID token with the custom claim `admin: true
 - Unauthenticated access correctly returns `Authentication required`.
 - Authenticated production A.R.T ADMIN request with Firebase `admin: true` token returned HTTP 200.
 - GA4 aggregate response shape was confirmed: `ok: true`, `totals`, and `source`.
+- PR37 was merged to `main`.
+- Production A.R.T ADMIN acquisition/funnel panel was visually verified after deployment.
+- Production panel displayed VISITORS / SIGNUP VIEW / SIGNUPS / TOOL START / REGISTER RATE / TOOL START RATE and source breakdown (X / note / direct / other).
 
 ## Worker environment
 
@@ -65,8 +68,8 @@ No email address, Firebase UID, audio, recording, image, analysis result or MEMO
 
 `https://art-admin-analytics-api.4td64nzyfj.workers.dev/api/funnel`
 
-Authenticated Worker/GA4 end-to-end verification has passed. The remaining release gate is merging PR37 and confirming the acquisition panel renders correctly in the production A.R.T ADMIN UI.
+Authenticated Worker/GA4 end-to-end verification has passed. PR37 is merged and the acquisition panel renders correctly in the production A.R.T ADMIN UI.
 
 ## Final cleanup
 
-After the production A.R.T ADMIN UI is verified, delete the downloaded service-account JSON key from the local PC.
+Production UI verification is complete. Delete the downloaded service-account JSON key from the local PC.
