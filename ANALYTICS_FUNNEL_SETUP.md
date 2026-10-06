@@ -20,12 +20,14 @@ The Worker requires a valid Firebase ID token with the custom claim `admin: true
 - Worker endpoint:
   `https://art-admin-analytics-api.4td64nzyfj.workers.dev/api/funnel`
 - Worker code deployed.
+- Required Worker variables/secrets are configured in production.
 - Unauthenticated access correctly returns `Authentication required`.
-- Remaining step before end-to-end verification: configure the Worker runtime variables/secrets below.
+- Authenticated production A.R.T ADMIN request with Firebase `admin: true` token returned HTTP 200.
+- GA4 aggregate response shape was confirmed: `ok: true`, `totals`, and `source`.
 
 ## Worker environment
 
-Set these values in Cloudflare Worker Settings > Variables and Secrets:
+Configured in Cloudflare Worker Settings > Variables and Secrets:
 
 - `FIREBASE_PROJECT_ID` = `art-admin-ba592`
 - `GA4_PROPERTY_ID` = `557622748`
@@ -33,7 +35,7 @@ Set these values in Cloudflare Worker Settings > Variables and Secrets:
 - `GA_CLIENT_EMAIL` = `a-r-t-admin-analytics-reader@art-admin-ba592.iam.gserviceaccount.com`
 - `GA_PRIVATE_KEY` = service-account private key (**SECRET**)
 
-Only `GA_PRIVATE_KEY` must be stored as a secret. Do not commit the downloaded JSON key or private key to GitHub.
+Only `GA_PRIVATE_KEY` is stored as a secret. Do not commit the downloaded JSON key or private key to GitHub.
 
 ## Worker API
 
@@ -63,8 +65,8 @@ No email address, Firebase UID, audio, recording, image, analysis result or MEMO
 
 `https://art-admin-analytics-api.4td64nzyfj.workers.dev/api/funnel`
 
-Do not merge this branch until the production A.R.T ADMIN account receives a successful authenticated aggregate response.
+Authenticated Worker/GA4 end-to-end verification has passed. The remaining release gate is merging PR37 and confirming the acquisition panel renders correctly in the production A.R.T ADMIN UI.
 
 ## Final cleanup
 
-After the Worker secret has been configured and verified, delete the downloaded service-account JSON key from the local PC.
+After the production A.R.T ADMIN UI is verified, delete the downloaded service-account JSON key from the local PC.
