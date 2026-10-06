@@ -1,4 +1,5 @@
 /* A.R.T shared access configuration. Public Firebase web config only. */
+window.AMC_APP_CHECK_CONFIG={enterpriseSiteKey:"6Lf7MuEtAAAAD-Jofjdq0l3xJLCoFhhbmKvlpbL"};
 window.AMC_FIREBASE_CONFIG={apiKey:"AIzaSyCcYyMxyGKMog1jXBFGcgbXrvZGvji_TFE",authDomain:"art-admin-ba592.firebaseapp.com",projectId:"art-admin-ba592",appId:"1:333091136127:web:ded2cbd4325b218f0f954a"};
 window.AMC_ACCESS_CONFIG={
   familyId:"acoustic",
