@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com; connect-src https://*.googleapis.com https://*.firebaseio.com https://www.google.com; frame-src https://www.google.com https://recaptcha.google.com; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<title>App Check Smoke Test</title>
+<style>
+body{font-family:system-ui,sans-serif;background:#0b1118;color:#eef3f8;padding:24px;line-height:1.6}
+main{max-width:680px;margin:auto}.box{border:1px solid #34556b;border-radius:14px;padding:18px;background:#101923}
+.pass{color:#7fffb0}.fail{color:#ff9f9f}code{overflow-wrap:anywhere}
+</style>
+<script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-check-compat.js"></script>
+</head>
+<body>
+<main>
+<h1>Firebase App Check Smoke Test</h1>
+<div class="box">
+<p id="status">確認中…</p>
+<p>このページはApp Checkの疎通確認専用です。Tool本体・認証・Firestoreデータは変更しません。</p>
+</div>
+</main>
+<script>
+(async()=>{
+  const status=document.getElementById('status');
+  try{
+    firebase.initializeApp({
+      apiKey:"AIzaSyCcYyMxyGKMog1jXBFGcgbXrvZGvji_TFE",
+      authDomain:"art-admin-ba592.firebaseapp.com",
+      projectId:"art-admin-ba592",
+      appId:"1:333091136127:web:ded2cbd4325b218f0f954a"
+    });
+    const appCheck=firebase.appCheck();
+    appCheck.activate(new firebase.appCheck.ReCaptchaEnterpriseProvider("6Lf7MuEtAAAAD-Jofjdq0l3xJLCoFhhbmKvlpbL"),true);
+    const result=await appCheck.getToken(true);
+    if(!result||!result.token)throw new Error("App Check token was not returned.");
+    status.className="pass";
+    status.textContent="PASS：App Checkトークンを取得できました。";
+  }catch(error){
+    status.className="fail";
+    status.textContent="FAIL："+(error&&error.message?error.message:String(error));
+  }
+})();
+</script>
+</body>
+</html>
