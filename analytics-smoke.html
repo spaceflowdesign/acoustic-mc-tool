@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.googletagmanager.com; connect-src https://www.googletagmanager.com https://*.google-analytics.com https://*.google.com; img-src data: https://www.googletagmanager.com https://*.google-analytics.com; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<title>Analytics Smoke Test</title>
+<style>
+body{font-family:system-ui,sans-serif;background:#0b1118;color:#eef3f8;padding:24px;line-height:1.6}
+main{max-width:680px;margin:auto}.box{border:1px solid #34556b;border-radius:14px;padding:18px;background:#101923}
+.ok{color:#7fffb0}.fail{color:#ff9f9f}
+</style>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-analytics.js"></script>
+</head>
+<body>
+<main>
+<h1>Google Analytics Smoke Test</h1>
+<div class="box">
+<p id="status">送信準備中…</p>
+<p>このページはAnalytics疎通確認専用です。Tool本体・認証・Firestoreデータは変更しません。</p>
+<p>メールアドレス、Firebase UID、音源、録音、写真、解析結果、MEMO本文は送信しません。</p>
+</div>
+</main>
+<script>
+(()=>{
+  const status=document.getElementById('status');
+  try{
+    firebase.initializeApp({
+      apiKey:"AIzaSyCcYyMxyGKMog1jXBFGcgbXrvZGvji_TFE",
+      authDomain:"art-admin-ba592.firebaseapp.com",
+      projectId:"art-admin-ba592",
+      appId:"1:333091136127:web:ded2cbd4325b218f0f954a",
+      measurementId:"G-4DF7HY7Y1G"
+    });
+    if(!firebase.analytics.isSupported()){
+      status.className="fail";
+      status.textContent="FAIL：このブラウザではAnalyticsがサポートされていません。";
+      return;
+    }
+    const analytics=firebase.analytics();
+    analytics.logEvent("analytics_smoke_test",{source_group:"smoke",debug_mode:true});
+    status.className="ok";
+    status.textContent="SENT：analytics_smoke_test を送信しました。GA側で受信確認してください。";
+  }catch(error){
+    status.className="fail";
+    status.textContent="FAIL："+(error&&error.message?error.message:String(error));
+  }
+})();
+</script>
+</body>
+</html>
