@@ -72,4 +72,4 @@ Authenticated Worker/GA4 end-to-end verification has passed. PR37 is merged and 
 
 ## Final cleanup
 
-Production UI verification is complete. Delete the downloaded service-account JSON key from the local PC.
+Production UI verification is complete. The downloaded service-account JSON key was deleted from the local PC after the Cloudflare secret was verified.
