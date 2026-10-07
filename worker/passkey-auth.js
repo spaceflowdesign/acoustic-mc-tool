@@ -1,0 +1,105 @@
+// @ts-nocheck
+const encoder=new TextEncoder();
+const decoder=new TextDecoder();
+let googleTokenCache={token:null,expiresAt:0};
+let firebaseJwkCache={keys:null,expiresAt:0};
+
+function corsHeaders(origin,env){
+  const allowed=env.ALLOWED_ORIGIN||'https://spaceflowdesign.github.io';
+  return origin===allowed?{'access-control-allow-origin':allowed,'vary':'Origin'}:{'vary':'Origin'};
+}
+function json(body,status=200,origin='',env={}){
+  return new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store',...corsHeaders(origin,env)}});
+}
+function bytes(input){return input instanceof Uint8Array?input:new Uint8Array(input)}
+function b64url(input){
+  const a=bytes(input);let s='';for(let i=0;i<a.length;i+=0x8000)s+=String.fromCharCode(...a.subarray(i,i+0x8000));
+  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function fromB64url(input){
+  let s=String(input||'').replace(/-/g,'+').replace(/_/g,'/');s+='='.repeat((4-s.length%4)%4);const raw=atob(s),out=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);return out;
+}
+function concat(...parts){const list=parts.map(bytes),len=list.reduce((n,x)=>n+x.length,0),out=new Uint8Array(len);let at=0;for(const p of list){out.set(p,at);at+=p.length}return out}
+function timingSafeEqual(a,b){a=bytes(a);b=bytes(b);if(a.length!==b.length)return false;let x=0;for(let i=0;i<a.length;i++)x|=a[i]^b[i];return x===0}
+async function sha256(input){return new Uint8Array(await crypto.subtle.digest('SHA-256',bytes(input)))}
+function randomB64url(size=32){const a=new Uint8Array(size);crypto.getRandomValues(a);return b64url(a)}
+function parseJwt(token){const p=String(token||'').split('.');if(p.length!==3)throw new Error('Invalid JWT');return{header:JSON.parse(decoder.decode(fromB64url(p[0]))),payload:JSON.parse(decoder.decode(fromB64url(p[1]))),signingInput:p[0]+'.'+p[1],signature:fromB64url(p[2])}}
+function pemToDer(pem){const clean=String(pem||'').replace(/\\n/g,'\n').replace(/-----BEGIN PRIVATE KEY-----/,'').replace(/-----END PRIVATE KEY-----/,'').replace(/\s/g,'');const raw=atob(clean),out=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);return out.buffer}
+async function importServiceKey(env){if(!env.FIREBASE_PRIVATE_KEY)throw new Error('FIREBASE_PRIVATE_KEY is not configured');return crypto.subtle.importKey('pkcs8',pemToDer(env.FIREBASE_PRIVATE_KEY),{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['sign'])}
+async function signRs256(payload,env){const header=b64url(encoder.encode(JSON.stringify({alg:'RS256',typ:'JWT'}))),body=b64url(encoder.encode(JSON.stringify(payload))),input=header+'.'+body,key=await importServiceKey(env),sig=new Uint8Array(await crypto.subtle.sign('RSASSA-PKCS1-v1_5',key,encoder.encode(input)));return input+'.'+b64url(sig)}
+async function hmac(payload,env){if(!env.PASSKEY_CHALLENGE_SECRET)throw new Error('PASSKEY_CHALLENGE_SECRET is not configured');const key=await crypto.subtle.importKey('raw',encoder.encode(env.PASSKEY_CHALLENGE_SECRET),{name:'HMAC',hash:'SHA-256'},false,['sign','verify']);return new Uint8Array(await crypto.subtle.sign('HMAC',key,encoder.encode(payload)))}
+async function issueState(data,env){const body=b64url(encoder.encode(JSON.stringify({...data,exp:Date.now()+5*60*1000}))),sig=b64url(await hmac(body,env));return body+'.'+sig}
+async function readState(token,purpose,env){const [body,sig,...rest]=String(token||'').split('.');if(!body||!sig||rest.length)throw new Error('Invalid passkey state');const expected=await hmac(body,env);if(!timingSafeEqual(expected,fromB64url(sig)))throw new Error('Invalid passkey state signature');const data=JSON.parse(decoder.decode(fromB64url(body)));if(data.exp<Date.now())throw new Error('Passkey challenge expired');if(data.purpose!==purpose)throw new Error('Passkey challenge purpose mismatch');return data}
+
+async function firebaseKeys(){
+  if(firebaseJwkCache.keys&&firebaseJwkCache.expiresAt>Date.now())return firebaseJwkCache.keys;
+  const res=await fetch('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com',{cf:{cacheTtl:300}});if(!res.ok)throw new Error('Unable to load Firebase signing keys');const data=await res.json(),keys=Array.isArray(data.keys)?data.keys:Object.entries(data).map(([kid,jwk])=>({...jwk,kid}));firebaseJwkCache={keys,expiresAt:Date.now()+5*60*1000};return keys;
+}
+async function verifyFirebaseIdToken(token,env){
+  const {header,payload,signingInput,signature}=parseJwt(token);if(header.alg!=='RS256'||!header.kid)throw new Error('Unsupported Firebase token');const jwk=(await firebaseKeys()).find(k=>k.kid===header.kid);if(!jwk)throw new Error('Firebase signing key not found');const key=await crypto.subtle.importKey('jwk',jwk,{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['verify']);if(!await crypto.subtle.verify('RSASSA-PKCS1-v1_5',key,signature,encoder.encode(signingInput)))throw new Error('Invalid Firebase token signature');const now=Math.floor(Date.now()/1000),project=env.FIREBASE_PROJECT_ID;if(payload.aud!==project||payload.iss!=='https://securetoken.google.com/'+project||!payload.sub||payload.exp<=now||payload.iat>now+60)throw new Error('Invalid Firebase token');return payload;
+}
+async function requireFirebaseUser(request,env){const auth=request.headers.get('Authorization')||'';if(!auth.startsWith('Bearer '))throw new Error('Authentication required');return verifyFirebaseIdToken(auth.slice(7),env)}
+async function googleAccessToken(env){
+  const now=Math.floor(Date.now()/1000);if(googleTokenCache.token&&googleTokenCache.expiresAt>now+120)return googleTokenCache.token;if(!env.FIREBASE_CLIENT_EMAIL)throw new Error('FIREBASE_CLIENT_EMAIL is not configured');const assertion=await signRs256({iss:env.FIREBASE_CLIENT_EMAIL,scope:'https://www.googleapis.com/auth/datastore',aud:'https://oauth2.googleapis.com/token',iat:now,exp:now+3600},env);const res=await fetch('https://oauth2.googleapis.com/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({grant_type:'urn:ietf:params:oauth:grant-type:jwt-bearer',assertion})});if(!res.ok)throw new Error('Google OAuth token request failed');const data=await res.json();googleTokenCache={token:data.access_token,expiresAt:now+(data.expires_in||3600)};return data.access_token;
+}
+function firestoreBase(env){return 'https://firestore.googleapis.com/v1/projects/'+encodeURIComponent(env.FIREBASE_PROJECT_ID)+'/databases/(default)/documents'}
+function fsValue(v){
+  if(v===null)return{nullValue:null};if(typeof v==='string')return{stringValue:v};if(typeof v==='boolean')return{booleanValue:v};if(Number.isInteger(v))return{integerValue:String(v)};if(typeof v==='number')return{doubleValue:v};if(Array.isArray(v))return{arrayValue:{values:v.map(fsValue)}};if(typeof v==='object')return{mapValue:{fields:Object.fromEntries(Object.entries(v).map(([k,x])=>[k,fsValue(x)]))}};throw new Error('Unsupported Firestore value')
+}
+function fromFsValue(v){if(!v)return null;if('stringValue'in v)return v.stringValue;if('booleanValue'in v)return v.booleanValue;if('integerValue'in v)return Number(v.integerValue);if('doubleValue'in v)return v.doubleValue;if('nullValue'in v)return null;if('arrayValue'in v)return(v.arrayValue.values||[]).map(fromFsValue);if('mapValue'in v)return Object.fromEntries(Object.entries(v.mapValue.fields||{}).map(([k,x])=>[k,fromFsValue(x)]));return null}
+function fsFields(obj){return Object.fromEntries(Object.entries(obj).map(([k,v])=>[k,fsValue(v)]))}
+function fromFsDoc(doc){return Object.fromEntries(Object.entries(doc?.fields||{}).map(([k,v])=>[k,fromFsValue(v)]))}
+async function fsRequest(env,path,options={}){const token=await googleAccessToken(env),res=await fetch(firestoreBase(env)+path,{...options,headers:{authorization:'Bearer '+token,'content-type':'application/json',...(options.headers||{})}});if(res.status===404)return null;if(!res.ok)throw new Error('Firestore request failed ('+res.status+')');return res.status===204?{}:res.json()}
+function credentialDocPath(id){return '/passkeyCredentials/'+encodeURIComponent(id)}
+async function getCredential(env,id){const doc=await fsRequest(env,credentialDocPath(id));return doc?{...fromFsDoc(doc),name:doc.name}:null}
+async function saveCredential(env,id,data){return fsRequest(env,credentialDocPath(id),{method:'PATCH',body:JSON.stringify({fields:fsFields(data)})})}
+async function updateCredential(env,id,patch){const mask=Object.keys(patch).map(k=>'updateMask.fieldPaths='+encodeURIComponent(k)).join('&');return fsRequest(env,credentialDocPath(id)+'?'+mask,{method:'PATCH',body:JSON.stringify({fields:fsFields(patch)})})}
+async function deleteCredential(env,id){const token=await googleAccessToken(env),res=await fetch(firestoreBase(env)+credentialDocPath(id),{method:'DELETE',headers:{authorization:'Bearer '+token}});if(res.status!==404&&!res.ok)throw new Error('Firestore delete failed ('+res.status+')')}
+async function listCredentialsForUid(env,uid){
+  const token=await googleAccessToken(env);const url='https://firestore.googleapis.com/v1/projects/'+encodeURIComponent(env.FIREBASE_PROJECT_ID)+'/databases/(default)/documents:runQuery';const body={structuredQuery:{from:[{collectionId:'passkeyCredentials'}],where:{fieldFilter:{field:{fieldPath:'uid'},op:'EQUAL',value:{stringValue:uid}}}}};const res=await fetch(url,{method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json'},body:JSON.stringify(body)});if(!res.ok)throw new Error('Firestore query failed ('+res.status+')');const rows=await res.json();return rows.filter(x=>x.document).map(x=>({...fromFsDoc(x.document),name:x.document.name}))
+}
+async function deleteCredentialsForUid(env,uid){const list=await listCredentialsForUid(env,uid);await Promise.all(list.map(c=>deleteCredential(env,c.credentialId)));return list.length}
+async function createFirebaseCustomToken(uid,env){const now=Math.floor(Date.now()/1000);return signRs256({iss:env.FIREBASE_CLIENT_EMAIL,sub:env.FIREBASE_CLIENT_EMAIL,aud:'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit',iat:now,exp:now+3600,uid},env)}
+
+function readUint(bytes,at,n){let v=0;for(let i=0;i<n;i++)v=v*256+bytes[at+i];return v}
+function readCbor(data,start=0){
+  const a=bytes(data);let pos=start;
+  function readLen(ai){if(ai<24)return ai;if(ai===24)return a[pos++];if(ai===25){const v=readUint(a,pos,2);pos+=2;return v}if(ai===26){const v=readUint(a,pos,4);pos+=4;return v}throw new Error('Unsupported CBOR length')}
+  function item(){const head=a[pos++],major=head>>5,ai=head&31;if(ai===31)throw new Error('Indefinite CBOR is not supported');const len=readLen(ai);if(major===0)return len;if(major===1)return-1-len;if(major===2){const v=a.slice(pos,pos+len);pos+=len;return v}if(major===3){const v=decoder.decode(a.slice(pos,pos+len));pos+=len;return v}if(major===4){const v=[];for(let i=0;i<len;i++)v.push(item());return v}if(major===5){const v=new Map();for(let i=0;i<len;i++)v.set(item(),item());return v}if(major===7){if(ai===20)return false;if(ai===21)return true;if(ai===22)return null}throw new Error('Unsupported CBOR type')}
+  return{value:item(),offset:pos};
+}
+function coseToJwk(cose){const m=cose instanceof Map?cose:readCbor(cose).value;if(m.get(1)!==2||m.get(3)!==-7||m.get(-1)!==1)throw new Error('Only ES256 passkeys are supported');const x=m.get(-2),y=m.get(-3);if(!(x instanceof Uint8Array)||!(y instanceof Uint8Array)||x.length!==32||y.length!==32)throw new Error('Invalid ES256 public key');return{kty:'EC',crv:'P-256',x:b64url(x),y:b64url(y),ext:true}}
+function parseRegistrationAuthData(authData){const a=bytes(authData);if(a.length<55)throw new Error('Authenticator data is too short');const rpIdHash=a.slice(0,32),flags=a[32],signCount=readUint(a,33,4);if(!(flags&0x01)||!(flags&0x04)||!(flags&0x40))throw new Error('Passkey user verification or attested data is missing');let pos=37+16;const idLen=readUint(a,pos,2);pos+=2;if(pos+idLen>a.length)throw new Error('Invalid credential ID length');const credentialId=a.slice(pos,pos+idLen);pos+=idLen;const parsed=readCbor(a,pos);return{rpIdHash,flags,signCount,credentialId,publicKeyJwk:coseToJwk(parsed.value)}}
+function parseAssertionAuthData(authData){const a=bytes(authData);if(a.length<37)throw new Error('Authenticator data is too short');return{rpIdHash:a.slice(0,32),flags:a[32],signCount:readUint(a,33,4)}}
+function parseClientData(clientDataJSON,expectedType,expectedChallenge,env){const raw=fromB64url(clientDataJSON),data=JSON.parse(decoder.decode(raw));if(data.type!==expectedType)throw new Error('WebAuthn type mismatch');if(data.challenge!==expectedChallenge)throw new Error('WebAuthn challenge mismatch');const expectedOrigin=env.WEBAUTHN_ORIGIN||env.ALLOWED_ORIGIN||'https://spaceflowdesign.github.io';if(data.origin!==expectedOrigin)throw new Error('WebAuthn origin mismatch');return{raw,data}}
+async function assertRpIdHash(actual,env){const rpId=env.WEBAUTHN_RP_ID||'spaceflowdesign.github.io',expected=await sha256(encoder.encode(rpId));if(!timingSafeEqual(actual,expected))throw new Error('WebAuthn RP ID mismatch')}
+function derEcdsaToRaw(sig,size=32){const a=bytes(sig);let p=0;if(a[p++]!==0x30)throw new Error('Invalid ECDSA signature');let len=a[p++];if(len&0x80){const n=len&0x7f;len=readUint(a,p,n);p+=n}if(a[p++]!==0x02)throw new Error('Invalid ECDSA signature');let rlen=a[p++];let r=a.slice(p,p+rlen);p+=rlen;if(a[p++]!==0x02)throw new Error('Invalid ECDSA signature');let slen=a[p++];let s=a.slice(p,p+slen);const trim=x=>{while(x.length>size&&x[0]===0)x=x.slice(1);if(x.length>size)throw new Error('Invalid ECDSA integer');const out=new Uint8Array(size);out.set(x,size-x.length);return out};return concat(trim(r),trim(s))}
+async function verifyAssertionSignature(publicKeyJwk,authenticatorData,clientRaw,signature){const key=await crypto.subtle.importKey('jwk',publicKeyJwk,{name:'ECDSA',namedCurve:'P-256'},false,['verify']),hash=await sha256(clientRaw),data=concat(fromB64url(authenticatorData),hash),sig=derEcdsaToRaw(fromB64url(signature));return crypto.subtle.verify({name:'ECDSA',hash:'SHA-256'},key,sig,data)}
+
+function publicKeyRegistrationOptions(user,challenge,env,exclude=[]){return{challenge,rp:{name:'Acoustic M.C',id:env.WEBAUTHN_RP_ID||'spaceflowdesign.github.io'},user:{id:b64url(encoder.encode(user.uid)),name:user.email||user.uid,displayName:user.email||'Acoustic M.C User'},pubKeyCredParams:[{type:'public-key',alg:-7}],timeout:60000,attestation:'none',authenticatorSelection:{residentKey:'required',requireResidentKey:true,userVerification:'required'},excludeCredentials:exclude.map(x=>({type:'public-key',id:x.credentialId,transports:Array.isArray(x.transports)?x.transports:undefined}))}}
+function publicKeyAuthenticationOptions(challenge,env){return{challenge,rpId:env.WEBAUTHN_RP_ID||'spaceflowdesign.github.io',timeout:60000,userVerification:'required'}}
+async function bodyJson(request){try{return await request.json()}catch{throw new Error('Invalid JSON body')}}
+async function registerOptions(request,env){const token=await requireFirebaseUser(request,env),challenge=randomB64url(),state=await issueState({purpose:'register',challenge,uid:token.sub},env),exclude=await listCredentialsForUid(env,token.sub);return{ok:true,state,publicKey:publicKeyRegistrationOptions({uid:token.sub,email:token.email||''},challenge,env,exclude)}}
+async function registerVerify(request,env){const token=await requireFirebaseUser(request,env),body=await bodyJson(request),state=await readState(body.state,'register',env);if(state.uid!==token.sub)throw new Error('Passkey registration user mismatch');const credential=body.credential;if(!credential?.id||credential.type!=='public-key'||!credential.response)throw new Error('Invalid passkey registration response');const client=parseClientData(credential.response.clientDataJSON,'webauthn.create',state.challenge,env),att=readCbor(fromB64url(credential.response.attestationObject)).value;if(!(att instanceof Map))throw new Error('Invalid attestation object');const fmt=att.get('fmt'),authData=att.get('authData');if(fmt!=='none')throw new Error('Only privacy-preserving none attestation is accepted');if(!(authData instanceof Uint8Array))throw new Error('Authenticator data missing');const parsed=parseRegistrationAuthData(authData);await assertRpIdHash(parsed.rpIdHash,env);const id=b64url(parsed.credentialId);if(id!==credential.id)throw new Error('Credential ID mismatch');const existing=await getCredential(env,id);if(existing&&existing.uid!==token.sub)throw new Error('Credential is already registered');const transports=Array.isArray(credential.response.transports)?credential.response.transports.filter(x=>typeof x==='string').slice(0,8):[];await saveCredential(env,id,{credentialId:id,uid:token.sub,publicKeyJwk:parsed.publicKeyJwk,signCount:parsed.signCount,transports,createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString(),status:'active'});return{ok:true,credentialId:id}}
+async function authenticateOptions(_request,env){const challenge=randomB64url(),state=await issueState({purpose:'authenticate',challenge},env);return{ok:true,state,publicKey:publicKeyAuthenticationOptions(challenge,env)}}
+async function authenticateVerify(request,env){const body=await bodyJson(request),state=await readState(body.state,'authenticate',env),credential=body.credential;if(!credential?.id||credential.type!=='public-key'||!credential.response)throw new Error('Invalid passkey authentication response');const record=await getCredential(env,credential.id);if(!record||record.status!=='active')throw new Error('Passkey is not registered');const userDoc=await fsRequest(env,'/users/'+encodeURIComponent(record.uid));const userProfile=userDoc?fromFsDoc(userDoc):null;if(!userProfile||userProfile.accountState!=='active')throw new Error('Account is not active');const client=parseClientData(credential.response.clientDataJSON,'webauthn.get',state.challenge,env),parsed=parseAssertionAuthData(fromB64url(credential.response.authenticatorData));await assertRpIdHash(parsed.rpIdHash,env);if(!(parsed.flags&0x01)||!(parsed.flags&0x04))throw new Error('Passkey user verification failed');if(!await verifyAssertionSignature(record.publicKeyJwk,credential.response.authenticatorData,client.raw,credential.response.signature))throw new Error('Invalid passkey signature');const old=Number(record.signCount||0),next=parsed.signCount;if(old>0&&next>0&&next<=old)throw new Error('Passkey counter check failed');await updateCredential(env,credential.id,{signCount:next,lastUsedAt:new Date().toISOString(),updatedAt:new Date().toISOString()});return{ok:true,uid:record.uid,customToken:await createFirebaseCustomToken(record.uid,env)}}
+async function status(request,env){const token=await requireFirebaseUser(request,env),list=await listCredentialsForUid(env,token.sub);return{ok:true,count:list.filter(x=>x.status==='active').length}}
+async function removeAll(request,env){const token=await requireFirebaseUser(request,env),body=await bodyJson(request);if(body.confirm!==true)throw new Error('Deletion confirmation required');return{ok:true,deleted:await deleteCredentialsForUid(env,token.sub)}}
+
+export default{async fetch(request,env){
+  const origin=request.headers.get('Origin')||'',allowed=env.ALLOWED_ORIGIN||'https://spaceflowdesign.github.io';
+  if(request.method==='OPTIONS'){if(origin!==allowed)return new Response(null,{status:403});return new Response(null,{status:204,headers:{...corsHeaders(origin,env),'access-control-allow-headers':'Authorization, Content-Type','access-control-allow-methods':'GET, POST, DELETE, OPTIONS','access-control-max-age':'600'}})}
+  if(origin&&origin!==allowed)return json({ok:false,error:'Origin not allowed'},403,'',env);
+  const path=new URL(request.url).pathname;
+  try{
+    let result;
+    if(path==='/api/passkey/register/options'&&request.method==='POST')result=await registerOptions(request,env);
+    else if(path==='/api/passkey/register/verify'&&request.method==='POST')result=await registerVerify(request,env);
+    else if(path==='/api/passkey/auth/options'&&request.method==='POST')result=await authenticateOptions(request,env);
+    else if(path==='/api/passkey/auth/verify'&&request.method==='POST')result=await authenticateVerify(request,env);
+    else if(path==='/api/passkey/status'&&request.method==='GET')result=await status(request,env);
+    else if(path==='/api/passkey'&&request.method==='DELETE')result=await removeAll(request,env);
+    else return json({ok:false,error:'Not found'},404,origin,env);
+    return json(result,200,origin,env);
+  }catch(error){const message=error instanceof Error?error.message:String(error);const client=/Authentication required|Invalid|mismatch|expired|not registered|failed|confirmation|required|Only ES256|Only privacy|already registered|counter check|user verification/i.test(message);return json({ok:false,error:message},client?400:500,origin,env)}
+}};
