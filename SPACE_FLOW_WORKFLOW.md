@@ -58,3 +58,17 @@ Codex must also follow the repository AGENTS.md. The intended division of respon
 - Chat: orchestration, state tracking, task framing, and review.
 - Work: research, browser/file operations, large-scale inspection and execution.
 - Codex: minimal-diff implementation and verification.
+
+
+## Platform / API direction
+SPACE FLOW DESIGN is being developed toward a reusable tool-infrastructure business, not only a collection of standalone apps.
+
+Apply these rules when shaping new shared capabilities:
+- Prefer reusable domain boundaries and stable internal interfaces when the same capability is likely to serve multiple SPACE FLOW DESIGN products.
+- Do not build a public API prematurely. First prove the capability inside one or more first-party products, then extract the stable common part.
+- Keep product-specific UI and workflow separate from reusable core logic/data contracts where practical.
+- When shared entities such as account, Project, Room, Session, calibration, analysis results, or reports are involved, avoid unnecessary incompatible schemas between products.
+- Preserve local-first/privacy constraints where they are part of the product promise; infrastructure reuse does not automatically justify cloud transfer.
+- Treat external API exposure, billing/metering, third-party authentication, rate limits, SDKs, SLAs, and public versioning as separate product decisions requiring owner approval.
+- Prefer versionable contracts and identifiers so a proven internal capability can later become an external API without forcing needless rewrites.
+- The business goal is to let first-party and eventually third-party tools consume proven SPACE FLOW DESIGN capabilities, creating infrastructure/API revenue where it is economically justified.
