@@ -29,6 +29,7 @@ main{max-width:760px;margin:auto;padding:28px 20px 64px}h1{font-size:24px}h2{fon
 
 <h2>2. 認証に使用する情報</h2>
 <p>本サービスはGoogle Firebase Authenticationを利用してログイン認証を行います。ログイン時に入力されたメールアドレスおよびパスワードはFirebase Authenticationへ送信され、認証処理に使用されます。当方の管理画面にはパスワードの平文は保存・表示されません。</p>
+<p>利用者がパスキーを登録した場合、認証に必要なCredential ID、公開鍵、署名カウンタ、対応する利用者識別子等を保存します。パスキーの秘密鍵、Face ID・Touch ID等の生体情報、端末のロック解除用パスコードは当方へ送信・保存されません。パスキー認証の検証処理にはCloudflare Workersを使用します。</p>
 <p>Firebase Authentication等の外部サービスでは、認証・セキュリティ・不正利用防止等のため、IPアドレス、User-Agentその他の技術情報が処理される場合があります。</p>
 
 <h2>3. アクセス解析で扱う情報</h2>
