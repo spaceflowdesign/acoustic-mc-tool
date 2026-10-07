@@ -92,3 +92,8 @@ The acquisition panel now uses the GA4 Data API `runFunnelReport` closed funnel 
 A user is counted in a later stage only if the same GA4 user passed the earlier stages in order during the selected date range. Intermediate unrelated events are allowed. The source block remains session-based (`sessions`) and is intentionally separate.
 
 Note: GA4 funnel reporting is provided by the Data API v1alpha `runFunnelReport` method; monitor for API changes.
+
+
+## Funnel entry filter compatibility fix
+
+GA4 Data API v1alpha does not currently allow `pagePath` as a funnel-step field filter. The VISITORS step therefore matches the `page_view` event and filters its `page_location` event parameter for `/acoustic-mc-tool/`. This preserves Tool-only entry filtering while using a filter type supported inside funnel event filters.
