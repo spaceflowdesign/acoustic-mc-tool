@@ -11,7 +11,8 @@ workspaceButton.onclick=async()=>{
     assertTest($('appMenuDialog').open,'top menu opens');
     assertTest($('appMenuDialog').querySelector('a[href="terms.html"]')&&$('appMenuDialog').querySelector('a[href="privacy.html"]'),'legal links are grouped in top menu');
     assertTest($('appLogoutButton')&&$('appLogoutButton').textContent==='ログアウト','logout action is available in top menu');
-    $('appMenuDialog').close();await delay(30);
+    assertTest($('appWithdrawButton')&&$('appWithdrawButton').textContent==='退会','withdraw action is available in top menu');
+    $('appWithdrawButton').click();assertTest($('withdrawDialog').open&&$('withdrawPassword').type==='password','withdraw dialog requires password confirmation');$('withdrawDialog').close();await delay(30);
     const original=wav();
     for(const k of ['A','B']){
       const data=new DataTransfer();data.items.add(new File([original],k+'.wav',{type:'audio/wav'}));$('file'+k).files=data.files;
