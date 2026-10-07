@@ -119,10 +119,15 @@ function visitStep(){
   return {
     name:'VISITORS',
     filterExpression:{
-      andGroup:{expressions:[
-        {funnelEventFilter:{eventName:'page_view'}},
-        {funnelFieldFilter:{fieldName:'pagePath',stringFilter:{matchType:'EXACT',value:toolPath,caseSensitive:true}}}
-      ]}
+      funnelEventFilter:{
+        eventName:'page_view',
+        funnelParameterFilterExpression:{
+          funnelParameterFilter:{
+            eventParameterName:'page_location',
+            stringFilter:{matchType:'CONTAINS',value:toolPath,caseSensitive:true}
+          }
+        }
+      }
     }
   };
 }
