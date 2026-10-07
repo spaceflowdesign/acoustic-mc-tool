@@ -78,3 +78,17 @@ Production UI verification is complete. The downloaded service-account JSON key 
 ## Funnel metric definition update
 
 As of the unique-user funnel update, VISITORS / SIGNUP VIEW / SIGNUPS / TOOL START are all GA4 `totalUsers` based metrics. X / note / direct / other remain GA4 `sessions` and are displayed in a separate source-session block. This avoids mixing user counts and event counts in one funnel.
+
+
+## Sequential funnel update
+
+The acquisition panel now uses the GA4 Data API `runFunnelReport` closed funnel for the four primary stages:
+
+1. VISITORS: `page_view` on `/acoustic-mc-tool/`
+2. SIGNUP VIEW: `signup_view`
+3. SIGNUPS: `sign_up`
+4. TOOL START: `tool_start`
+
+A user is counted in a later stage only if the same GA4 user passed the earlier stages in order during the selected date range. Intermediate unrelated events are allowed. The source block remains session-based (`sessions`) and is intentionally separate.
+
+Note: GA4 funnel reporting is provided by the Data API v1alpha `runFunnelReport` method; monitor for API changes.
