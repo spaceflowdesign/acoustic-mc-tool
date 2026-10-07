@@ -427,3 +427,24 @@ Current real-device status supersedes older unresolved notes above:
 - Long-duration work-session use: **currently no issue observed by the user while using the Tool during normal work**. Continue treating this as ongoing endurance observation rather than a reproduced defect.
 - Remaining real-device issue identified on 2026-10-03: browser page reload clears selected A/B file/video state even though saved MEMO records remain. The session-restore implementation added after this note persists source Blobs and comparison state in local IndexedDB so reload and saved-record restore can rebuild A/B without asking the user to manually reselect files.
 - All persistence remains device-local. No server, external API, cloud storage, operator-side storage cost, or recurring service fee is introduced.
+
+
+## Tool利用停止 / 共通アカウント削除 — 配布前確認
+
+今回の変更では、製品単位の利用停止と共通アカウント削除を分離する。
+
+本番反映前に以下を確認する。
+
+- Tool利用停止 → `families.acoustic.products.tool.state = inactive` となり、Firebase Authenticationアカウントとメールアドレスは残る。
+- Tool利用停止後 → Tool本体へ入れず「Toolを再開」が表示される。
+- Tool再開 → 同じUIDのまま `tool.state = active` に戻り、既存の端末登録を維持して利用できる。
+- Tool利用停止 / 再開で、将来の `analyzer` 製品状態を変更しない。
+- アカウント削除 → 従来どおり本人確認後にAuthenticationを削除し、Firestoreのメールアドレスを空欄化、`accountState = withdrawn` を記録する。
+- アカウント削除で端末内の音源・録音・MEMO・写真等を自動削除しない。
+- ADMINで製品単位の `INACTIVE` と共通アカウント削除済み `DELETED` を区別して確認できる。
+- 利用規約 / プライバシーポリシーの同意バージョンが `2026-10-07-r2` で一致する。
+
+### 公開順序
+
+`firestore.rules` を先にFirebase Consoleへ公開する。
+旧RulesのままWeb側だけを先に公開すると、Tool利用停止 / 再開の自己更新が拒否されるため、Web側のマージ・本番反映はRules公開後に行う。
