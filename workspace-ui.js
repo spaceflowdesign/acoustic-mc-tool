@@ -34,6 +34,9 @@ function initWorkspace(){
   helpText.Tool=[document.querySelector('.intro').textContent,...Array.from(document.querySelectorAll('.privacy span'),e=>e.textContent),document.querySelector('footer').textContent];
   document.querySelector('.intro').hidden=true;document.querySelector('.privacy').hidden=true;document.querySelector('footer').hidden=true;
   const help=addDialog('helpDialog','HELP');help.querySelector('.dialog-body').classList.add('help-content');
+  const appMenu=addDialog('appMenuDialog','MENU');
+  appMenu.querySelector('.dialog-body').innerHTML='<nav class="app-menu-list" aria-label="アカウントと法務"><a class="app-menu-link" href="terms.html" target="_blank" rel="noopener">利用規約</a><a class="app-menu-link" href="privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a><button id="appLogoutButton" type="button" class="alt">ログアウト</button></nav>';
+  $('appLogoutButton').onclick=async()=>{if(!window.confirm('ログアウトしますか？'))return;if(!window.AMCAccess?.signOut){window.alert('ログアウト機能を利用できません。ページを再読み込みしてください。');return}const button=$('appLogoutButton');button.disabled=true;appMenu.close();try{await window.AMCAccess.signOut()}catch(error){button.disabled=false;window.alert('ログアウトできませんでした：'+(error?.message||error))}};
   helpText['GAIN MATCH']=['GAIN MATCH','A/Bの音量差を補正し、音量による聴感上の偏りを抑えて比較します。','FILEとAIR RECでは、それぞれの比較目的に適した方式を自動で使用します。'];
   const about=addDialog('aboutDialog','ABOUT / HOW IT WORKS');about.querySelector('.dialog-body').classList.add('help-content');
   const sections=[
@@ -62,8 +65,8 @@ function initWorkspace(){
   document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>changePage(b.dataset.page));
   $('prevPage').onclick=()=>stepPage(-1);$('nextPage').onclick=()=>stepPage(1);
   $('status').classList.add('workspace-status');
-  const ribbon=element('div',{class:'source-ribbon'},'<button class="alt source-summary" data-source="A"><b>A</b><span id="summaryA">音源を選択</span></button><button class="alt source-summary" data-source="B"><b>B</b><span id="summaryB">音源を選択</span></button><button class="help-button" aria-label="Toolの説明">?</button>');
-  $('status').before(ribbon);ribbon.querySelectorAll('[data-source]').forEach(b=>b.onclick=()=>openDialog('sourceDialog'));ribbon.querySelector('.help-button').onclick=()=>showHelp('Tool');
+  const ribbon=element('div',{class:'source-ribbon'},'<button class="alt source-summary" data-source="A"><b>A</b><span id="summaryA">音源を選択</span></button><button class="alt source-summary" data-source="B"><b>B</b><span id="summaryB">音源を選択</span></button><button id="appMenuButton" class="help-button menu-button" aria-label="メニュー">⋮</button><button class="help-button tool-help-button" aria-label="Toolの説明">?</button>');
+  $('status').before(ribbon);ribbon.querySelectorAll('[data-source]').forEach(b=>b.onclick=()=>openDialog('sourceDialog'));$('appMenuButton').onclick=()=>openDialog('appMenuDialog');ribbon.querySelector('.tool-help-button').onclick=()=>showHelp('Tool');
   // Move the original transport and seek controls to one shared dock.
   const dock=element('div',{id:'transportDock',class:'transport-dock'});
   for(const el of [filesCard.querySelector('.transport'),$('now'),filesCard.querySelector('.seeklabel'),$('seek')])dock.append(el);
