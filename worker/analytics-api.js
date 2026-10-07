@@ -121,15 +121,15 @@ async function buildReport(env,range){
   const dates=[{startDate:dateStart(range),endDate:'today'}];
   const [visitorsReport,eventsReport,sourcesReport]=await Promise.all([
     runReport(env,{dateRanges:dates,metrics:[{name:'totalUsers'}],dimensionFilter:pageFilter()}),
-    runReport(env,{dateRanges:dates,dimensions:[{name:'eventName'}],metrics:[{name:'eventCount'}],dimensionFilter:eventFilter()}),
+    runReport(env,{dateRanges:dates,dimensions:[{name:'eventName'}],metrics:[{name:'totalUsers'}],dimensionFilter:eventFilter()}),
     runReport(env,{dateRanges:dates,dimensions:[{name:'sessionSource'}],metrics:[{name:'sessions'}],dimensionFilter:pageFilter(),limit:'100'})
   ]);
 
   const visitors=n(visitorsReport.rows?.[0]?.metricValues?.[0]?.value);
-  const counts={signup_view:0,sign_up:0,tool_start:0};
+  const uniqueUsers={signup_view:0,sign_up:0,tool_start:0};
   for(const row of eventsReport.rows||[]){
     const name=row.dimensionValues?.[0]?.value;
-    if(name in counts) counts[name]+=n(row.metricValues?.[0]?.value);
+    if(name in uniqueUsers) uniqueUsers[name]+=n(row.metricValues?.[0]?.value);
   }
   const source={x:0,note:0,direct:0,other:0};
   for(const row of sourcesReport.rows||[]){
@@ -142,11 +142,11 @@ async function buildReport(env,range){
     generatedAt:new Date().toISOString(),
     totals:{
       visitors,
-      signupView:counts.signup_view,
-      signups:counts.sign_up,
-      toolStart:counts.tool_start,
-      registerRate:pct(counts.sign_up,visitors),
-      toolStartRate:pct(counts.tool_start,counts.sign_up)
+      signupView:uniqueUsers.signup_view,
+      signups:uniqueUsers.sign_up,
+      toolStart:uniqueUsers.tool_start,
+      registerRate:pct(uniqueUsers.sign_up,visitors),
+      toolStartRate:pct(uniqueUsers.tool_start,uniqueUsers.sign_up)
     },
     source
   };

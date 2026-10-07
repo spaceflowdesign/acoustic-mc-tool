@@ -73,3 +73,8 @@ Authenticated Worker/GA4 end-to-end verification has passed. PR37 is merged and 
 ## Final cleanup
 
 Production UI verification is complete. The downloaded service-account JSON key was deleted from the local PC after the Cloudflare secret was verified.
+
+
+## Funnel metric definition update
+
+As of the unique-user funnel update, VISITORS / SIGNUP VIEW / SIGNUPS / TOOL START are all GA4 `totalUsers` based metrics. X / note / direct / other remain GA4 `sessions` and are displayed in a separate source-session block. This avoids mixing user counts and event counts in one funnel.
