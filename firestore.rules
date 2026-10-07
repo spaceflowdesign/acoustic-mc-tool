@@ -58,8 +58,8 @@ service cloud.firestore {
         && request.resource.data.families.acoustic.products.tool.diff(resource.data.families.acoustic.products.tool).affectedKeys()
              .hasOnly(['devices','lastSeenAt'])
         && request.resource.data.legal.keys().hasOnly(['termsVersion','privacyVersion','agreedAt'])
-        && request.resource.data.legal.termsVersion == '2026-10-07-r2'
-        && request.resource.data.legal.privacyVersion == '2026-10-07-r2'
+        && request.resource.data.legal.termsVersion in ['2026-10-07','2026-10-07-r2']
+        && request.resource.data.legal.privacyVersion in ['2026-10-07','2026-10-07-r2']
       );
       allow delete: if false;
     }
