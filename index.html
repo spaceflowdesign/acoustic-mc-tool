@@ -714,15 +714,21 @@ function initWorkspace(){
   document.querySelector('.intro').hidden=true;document.querySelector('.privacy').hidden=true;document.querySelector('footer').hidden=true;
   const help=addDialog('helpDialog','HELP');help.querySelector('.dialog-body').classList.add('help-content');
   const appMenu=addDialog('appMenuDialog','MENU');
-  appMenu.querySelector('.dialog-body').innerHTML='<nav class="app-menu-list" aria-label="アカウントと法務"><a class="app-menu-link" href="terms.html" target="_blank" rel="noopener">利用規約</a><a class="app-menu-link" href="privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a><button id="appLogoutButton" type="button" class="alt">ログアウト</button><button id="appStopToolButton" type="button" class="alt">Tool利用停止</button><button id="appDeleteAccountButton" type="button" class="alt danger-action">アカウント削除</button></nav>';
+  appMenu.querySelector('.dialog-body').innerHTML='<nav class="app-menu-list" aria-label="アカウントと法務"><a class="app-menu-link" href="terms.html" target="_blank" rel="noopener">利用規約</a><a class="app-menu-link" href="privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a><button id="appPasskeyButton" type="button" class="alt">パスキー設定</button><button id="appLogoutButton" type="button" class="alt">ログアウト</button><button id="appStopToolButton" type="button" class="alt">Tool利用停止</button><button id="appDeleteAccountButton" type="button" class="alt danger-action">アカウント削除</button></nav>';
+  const passkey=addDialog('passkeyDialog','パスキー設定');
+  passkey.querySelector('.dialog-body').innerHTML='<div class="withdraw-form"><p><strong>Face ID等でAcoustic M.Cへログインできます。</strong></p><p id="passkeyStatusText">状態を確認しています…</p><button id="passkeyRegisterButton" type="button">パスキーを登録</button><button id="passkeyRemoveButton" type="button" class="alt danger-action">登録済みパスキーを削除</button></div>';
   const stopTool=addDialog('stopToolDialog','Tool利用停止');
   stopTool.querySelector('.dialog-body').innerHTML='<form id="stopToolForm" class="withdraw-form"><p><strong>Acoustic M.C Toolだけを利用停止します。</strong></p><p>共通アカウント、メールアドレス、Acoustic M.C Analyzerなど他製品の利用権は削除されません。Toolは後から再開できます。端末内の録音・MEMO等も自動削除しません。</p><label class="withdraw-check"><input id="stopToolConfirm" type="checkbox" required><span>Toolだけを利用停止することを確認しました。</span></label><button id="stopToolSubmit" type="submit" class="alt">Tool利用停止</button><p id="stopToolStatus" class="withdraw-status" role="status"></p></form>';
   const accountDelete=addDialog('accountDeleteDialog','アカウント削除');
-  accountDelete.querySelector('.dialog-body').innerHTML='<form id="accountDeleteForm" class="withdraw-form"><p><strong>共通アカウントを削除すると、Acoustic M.C Toolだけでなく、このアカウントを使うAcoustic M.C Analyzer等の製品にもログインできなくなります。</strong></p><p>管理用の削除履歴としてUID・削除日時・削除状態のみを残し、登録メールアドレスは削除します。端末内の録音・MEMO等は自動削除しません。</p><label for="accountDeletePassword">本人確認のためパスワードを入力</label><input id="accountDeletePassword" type="password" autocomplete="current-password" required><label class="withdraw-check"><input id="accountDeleteConfirm" type="checkbox" required><span>共通アカウントが削除されることを確認しました。</span></label><button id="accountDeleteSubmit" type="submit" class="danger-action">アカウント削除</button><p id="accountDeleteStatus" class="withdraw-status" role="status"></p></form>';
+  accountDelete.querySelector('.dialog-body').innerHTML='<form id="accountDeleteForm" class="withdraw-form"><p><strong>共通アカウントを削除すると、Acoustic M.C Toolだけでなく、このアカウントを使うAcoustic M.C Analyzer等の製品にもログインできなくなります。</strong></p><p>管理用の削除履歴としてUID・削除日時・削除状態のみを残し、登録メールアドレスは削除します。端末内の録音・MEMO等は自動削除しません。</p><button id="accountDeletePasskey" type="button" class="alt">パスキーで本人確認して削除</button><label for="accountDeletePassword">またはパスワードで本人確認</label><input id="accountDeletePassword" type="password" autocomplete="current-password" required><label class="withdraw-check"><input id="accountDeleteConfirm" type="checkbox" required><span>共通アカウントが削除されることを確認しました。</span></label><button id="accountDeleteSubmit" type="submit" class="danger-action">アカウント削除</button><p id="accountDeleteStatus" class="withdraw-status" role="status"></p></form>';
+  $('appPasskeyButton').onclick=async()=>{appMenu.close();openDialog('passkeyDialog');const text=$('passkeyStatusText'),reg=$('passkeyRegisterButton'),remove=$('passkeyRemoveButton');reg.disabled=remove.disabled=true;try{if(!window.AMCAccess?.passkeySupported?.()){text.textContent='この端末・ブラウザではパスキーを利用できません。';return}const st=await window.AMCAccess.passkeyStatus();text.textContent=st.count>0?'登録済みパスキー：'+st.count+'件':'パスキーはまだ登録されていません。';reg.disabled=false;remove.disabled=st.count<1}catch(error){text.textContent=error?.message||'状態を確認できませんでした。'}};
+  $('passkeyRegisterButton').onclick=async()=>{const b=$('passkeyRegisterButton'),text=$('passkeyStatusText');b.disabled=true;text.textContent='Face ID等でパスキーを登録します…';try{await window.AMCAccess.registerPasskey();const st=await window.AMCAccess.passkeyStatus();text.textContent='パスキーを登録しました。登録済み：'+st.count+'件';$('passkeyRemoveButton').disabled=false}catch(error){text.textContent=error?.message||'パスキーを登録できませんでした。'}finally{b.disabled=false}};
+  $('passkeyRemoveButton').onclick=async()=>{if(!window.confirm('登録済みのパスキーをすべて削除しますか？パスワードログインは引き続き利用できます。'))return;const b=$('passkeyRemoveButton'),text=$('passkeyStatusText');b.disabled=true;try{const r=await window.AMCAccess.removePasskeys();text.textContent='パスキーを削除しました。削除件数：'+r.deleted;b.disabled=true}catch(error){text.textContent=error?.message||'パスキーを削除できませんでした。';b.disabled=false}};
   $('appLogoutButton').onclick=async()=>{if(!window.confirm('ログアウトしますか？'))return;if(!window.AMCAccess?.signOut){window.alert('ログアウト機能を利用できません。ページを再読み込みしてください。');return}const button=$('appLogoutButton');button.disabled=true;appMenu.close();try{await window.AMCAccess.signOut()}catch(error){button.disabled=false;window.alert('ログアウトできませんでした：'+(error?.message||error))}};
   $('appStopToolButton').onclick=()=>{appMenu.close();$('stopToolConfirm').checked=false;$('stopToolStatus').textContent='';openDialog('stopToolDialog')};
   $('stopToolForm').onsubmit=async event=>{event.preventDefault();if(!$('stopToolConfirm').checked)return;if(!window.AMCAccess?.stopProduct){$('stopToolStatus').textContent='利用停止機能を利用できません。ページを再読み込みしてください。';return}const button=$('stopToolSubmit');button.disabled=true;$('stopToolStatus').textContent='Toolの利用を停止しています…';try{await window.AMCAccess.stopProduct();stopTool.close()}catch(error){button.disabled=false;$('stopToolStatus').textContent=error?.message||'Toolの利用を停止できませんでした。'}};
   $('appDeleteAccountButton').onclick=()=>{appMenu.close();$('accountDeletePassword').value='';$('accountDeleteConfirm').checked=false;$('accountDeleteStatus').textContent='';openDialog('accountDeleteDialog');$('accountDeletePassword').focus()};
+  $('accountDeletePasskey').onclick=async()=>{if(!$('accountDeleteConfirm').checked){$('accountDeleteStatus').textContent='確認欄にチェックしてください。';return}if(!window.confirm('共通アカウントを削除しますか？この操作は元に戻せません。'))return;const button=$('accountDeletePasskey');button.disabled=true;$('accountDeleteStatus').textContent='パスキーで本人確認しています…';try{await window.AMCAccess.deleteAccount('', 'passkey');accountDelete.close()}catch(error){button.disabled=false;$('accountDeleteStatus').textContent=error?.message||'アカウントを削除できませんでした。'}};
   $('accountDeleteForm').onsubmit=async event=>{event.preventDefault();if(!$('accountDeleteConfirm').checked)return;if(!window.AMCAccess?.deleteAccount){$('accountDeleteStatus').textContent='アカウント削除機能を利用できません。ページを再読み込みしてください。';return}const button=$('accountDeleteSubmit');button.disabled=true;$('accountDeleteStatus').textContent='本人確認とアカウント削除を実行しています…';try{await window.AMCAccess.deleteAccount($('accountDeletePassword').value);accountDelete.close()}catch(error){button.disabled=false;$('accountDeleteStatus').textContent=error?.message||'アカウントを削除できませんでした。'}};
   helpText['GAIN MATCH']=['GAIN MATCH','A/Bの音量差を補正し、音量による聴感上の偏りを抑えて比較します。','FILEとAIR RECでは、それぞれの比較目的に適した方式を自動で使用します。'];
   const about=addDialog('aboutDialog','ABOUT / HOW IT WORKS');about.querySelector('.dialog-body').classList.add('help-content');
@@ -1430,75 +1436,6 @@ initWorkspace=function(){helpInit();
   helpFooter($('displayDialog').querySelector('.dialog-body'),'解析');
 };
 
-// BEGIN session-restore
-// Local-only source/session persistence. No network or server storage.
-const sessionVault={db:null,currentWrite:Promise.resolve(),restoring:false};
-function sessionDB(){
-  if(sessionVault.db)return Promise.resolve(sessionVault.db);
-  return new Promise((resolve,reject)=>{
-    const request=indexedDB.open('amct_session_v1',1);
-    request.onupgradeneeded=()=>{const db=request.result;db.createObjectStore('sources',{keyPath:'id'});db.createObjectStore('state',{keyPath:'id'});};
-    request.onerror=()=>reject(request.error);
-    request.onsuccess=()=>{sessionVault.db=request.result;sessionVault.db.onversionchange=()=>{sessionVault.db.close();sessionVault.db=null;};resolve(sessionVault.db);};
-  });
-}
-function sessionTx(db,stores,mode,work){return new Promise((resolve,reject)=>{const tx=db.transaction(stores,mode);try{work(tx);}catch(e){tx.abort();reject(e);return;}tx.oncomplete=()=>resolve();tx.onerror=tx.onabort=()=>reject(tx.error||Error('端末内セッション保存に失敗しました'));});}
-async function persistSlotSource(k){
-  const s=slots[k];if(!s?.blob)return null;
-  if(s.restoreSourceId)return s.restoreSourceId;
-  const id=crypto.randomUUID(),record={id,name:s.name,inputKind:s.inputKind||'file',blob:s.blob,date:new Date().toISOString()};
-  const db=await sessionDB();await sessionTx(db,['sources'],'readwrite',tx=>tx.objectStore('sources').put(record));s.restoreSourceId=id;return id;
-}
-function sessionSnapshot(){
-  return {version:1,A:slots.A?.restoreSourceId||null,B:slots.B?.restoreSourceId||null,offset,gainEnabled,smoothingOct,freqMode:$('freqMode')?.value||'music',cursor:position(),savedAt:new Date().toISOString()};
-}
-async function persistSessionState(){
-  if(sessionVault.restoring)return;
-  try{
-    await Promise.all(['A','B'].map(k=>slots[k]?persistSlotSource(k):null));
-    const db=await sessionDB(),state={id:'current',...sessionSnapshot()};
-    await sessionTx(db,['state'],'readwrite',tx=>tx.objectStore('state').put(state));
-  }catch(error){if($('status'))say('現在のA/Bは使用できますが、再読込用の端末保存に失敗しました：'+error.message);}
-}
-function queueSessionSave(){sessionVault.currentWrite=sessionVault.currentWrite.then(()=>persistSessionState()).catch(()=>{});return sessionVault.currentWrite;}
-async function getSessionSource(id){if(!id)return null;const db=await sessionDB();return new Promise((resolve,reject)=>{const req=db.transaction('sources').objectStore('sources').get(id);req.onsuccess=()=>resolve(req.result||null);req.onerror=()=>reject(req.error);});}
-async function getCurrentSession(){const db=await sessionDB();return new Promise((resolve,reject)=>{const req=db.transaction('state').objectStore('state').get('current');req.onsuccess=()=>resolve(req.result||null);req.onerror=()=>reject(req.error);});}
-async function restoreSessionState(state,{announce=true}={}){
-  if(!state)return false;sessionVault.restoring=true;
-  try{
-    pause(true);
-    for(const k of ['A','B']){
-      const id=state[k],source=await getSessionSource(id);
-      if(!source){if(id)throw Error(k+'の保存元ファイルが端末内に見つかりません');continue;}
-      await originalSessionLoadBlob(k,source.blob,source.name,source.inputKind);if(slots[k])slots[k].restoreSourceId=id;
-    }
-    if(slots.A&&slots.B&&Number.isFinite(state.offset))originalSessionSetOffset(state.offset*1000);
-    if($('freqMode')&&state.freqMode){$('freqMode').value=state.freqMode;}
-    if($('smoothing')&&Number.isFinite(state.smoothingOct)){$('smoothing').value=String(state.smoothingOct);$('smoothing').dispatchEvent(new Event('change'));}
-    refreshGainMatch();if(!!state.gainEnabled!==gainEnabled&&gainResult?.valid)originalSessionToggleGain();
-    const [lo,hi]=limits();cursor=Math.max(lo,Math.min(Number.isFinite(state.cursor)?state.cursor:lo,hi));update();draw();if(typeof refreshAnalysisNotes==='function')refreshAnalysisNotes();
-    if(announce)say('保存したA/B・SYNC・GAIN MATCH・表示条件を端末内データから復帰しました。');
-    return true;
-  }finally{sessionVault.restoring=false;queueSessionSave();}
-}
-async function restoreLastSession(){
-  try{const state=await getCurrentSession();if(state?.A||state?.B)await restoreSessionState(state,{announce:false});}
-  catch(error){if($('status'))say('前回セッションを自動復帰できませんでした：'+error.message);}
-}
-const originalSessionLoadBlob=loadBlob;
-loadBlob=function(k,blob,name,inputKind='file'){return originalSessionLoadBlob(k,blob,name,inputKind).then(async value=>{if(slots[k]?.blob===blob){await persistSlotSource(k);await queueSessionSave();}return value;});};
-const originalSessionSetOffset=setOffset;
-setOffset=function(v){const result=originalSessionSetOffset(v);queueSessionSave();return result;};
-const originalSessionToggleGain=toggleGainMatch;
-toggleGainMatch=function(){const result=originalSessionToggleGain();queueSessionSave();return result;};
-document.addEventListener('change',e=>{if(e.target?.id==='smoothing'||e.target?.id==='freqMode')queueSessionSave();});
-document.addEventListener('click',e=>{if(e.target?.id==='clearA'||e.target?.id==='clearB')setTimeout(()=>queueSessionSave(),0);});
-window.addEventListener('pagehide',()=>{void queueSessionSave();});
-const sessionInit=initWorkspace;
-initWorkspace=function(){sessionInit();queueMicrotask(()=>void restoreLastSession());};
-
-// END session-restore
-
 const memoPhotos={db:null,draft:[],urls:[],viewUrls:[],saving:false};
 const BUG_REPORT_EMAIL=['spaceflowdesign.jp','gmail.com'].join('@');
 function bugReportState(){return {at:new Date().toISOString(),userAgent:navigator.userAgent,page:activePage,A:slots.A?{name:slots.A.name,type:slots.A.blob?.type||'',size:slots.A.blob?.size||0,inputKind:slots.A.inputKind||'file'}:null,B:slots.B?{name:slots.B.name,type:slots.B.blob?.type||'',size:slots.B.blob?.size||0,inputKind:slots.B.inputKind||'file'}:null,syncMs:Number.isFinite(offset)?Number((offset*1000).toFixed(1)):null,gainMatch:gainEnabled?'ON':'OFF',frequencyMode:$('freqMode')?.value||null,smoothing:Number.isFinite(smoothingOct)?smoothingOct:null,recentInputDiagnostics:inputEvents.slice(-16)};}
@@ -1571,11 +1508,6 @@ initWorkspace=function(){photoInit();
 
 const analysisShowWorkspacePage=showWorkspacePage;
 showWorkspacePage=function(p){analysisShowWorkspacePage(p);if(p==='history')refreshAnalysisNotes();};
-
-
-
-
-
 
 // END workspace-ui
 const originalUpdate=update,originalDraw=draw;
