@@ -18,5 +18,5 @@ window.AMC_ACCESS_CONFIG={
     }}
   },
   adminEmail:"spaceflowdesign.jp@gmail.com",
-  legal:{termsVersion:"2026-10-03",privacyVersion:"2026-10-06"}
+  legal:{termsVersion:"2026-10-07",privacyVersion:"2026-10-07"}
 };

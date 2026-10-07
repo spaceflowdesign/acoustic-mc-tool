@@ -9,6 +9,15 @@ service cloud.firestore {
                     && request.resource.data.accountState == 'active';
       allow update: if isAdmin() || (
         signedIn() && request.auth.uid == uid
+        && resource.data.accountState == 'active'
+        && request.resource.data.accountState == 'withdrawn'
+        && request.resource.data.email == ''
+        && request.resource.data.withdrawnAt is timestamp
+        && request.resource.data.updatedAt is timestamp
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['email','accountState','withdrawnAt','updatedAt'])
+      ) || (
+        signedIn() && request.auth.uid == uid
         && request.resource.data.accountState == resource.data.accountState
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['email','families','legal','lastSeenAt','updatedAt'])
@@ -21,8 +30,8 @@ service cloud.firestore {
         && request.resource.data.families.acoustic.products.tool.diff(resource.data.families.acoustic.products.tool).affectedKeys()
              .hasOnly(['devices','lastSeenAt'])
         && request.resource.data.legal.keys().hasOnly(['termsVersion','privacyVersion','agreedAt'])
-        && request.resource.data.legal.termsVersion == '2026-10-03'
-        && request.resource.data.legal.privacyVersion == '2026-10-03'
+        && request.resource.data.legal.termsVersion == '2026-10-07'
+        && request.resource.data.legal.privacyVersion == '2026-10-07'
       );
       allow delete: if false;
     }
