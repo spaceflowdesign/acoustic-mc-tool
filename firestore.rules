@@ -18,6 +18,34 @@ service cloud.firestore {
              .hasOnly(['email','accountState','withdrawnAt','updatedAt'])
       ) || (
         signedIn() && request.auth.uid == uid
+        && resource.data.accountState == 'active'
+        && request.resource.data.accountState == resource.data.accountState
+        && resource.data.families.acoustic.state == 'active'
+        && request.resource.data.families.acoustic.state == resource.data.families.acoustic.state
+        && request.resource.data.updatedAt is timestamp
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['families','updatedAt'])
+        && request.resource.data.families.diff(resource.data.families).affectedKeys()
+             .hasOnly(['acoustic'])
+        && request.resource.data.families.acoustic.diff(resource.data.families.acoustic).affectedKeys()
+             .hasOnly(['products'])
+        && request.resource.data.families.acoustic.products.diff(resource.data.families.acoustic.products).affectedKeys()
+             .hasOnly(['tool'])
+        && request.resource.data.families.acoustic.products.tool.diff(resource.data.families.acoustic.products.tool).affectedKeys()
+             .hasOnly(['state','userStoppedAt','userReactivatedAt'])
+        && (
+          (
+            resource.data.families.acoustic.products.tool.state == 'active'
+            && request.resource.data.families.acoustic.products.tool.state == 'inactive'
+            && request.resource.data.families.acoustic.products.tool.userStoppedAt is timestamp
+          ) || (
+            resource.data.families.acoustic.products.tool.state == 'inactive'
+            && request.resource.data.families.acoustic.products.tool.state == 'active'
+            && request.resource.data.families.acoustic.products.tool.userReactivatedAt is timestamp
+          )
+        )
+      ) || (
+        signedIn() && request.auth.uid == uid
         && request.resource.data.accountState == resource.data.accountState
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['email','families','legal','lastSeenAt','updatedAt'])
@@ -30,8 +58,8 @@ service cloud.firestore {
         && request.resource.data.families.acoustic.products.tool.diff(resource.data.families.acoustic.products.tool).affectedKeys()
              .hasOnly(['devices','lastSeenAt'])
         && request.resource.data.legal.keys().hasOnly(['termsVersion','privacyVersion','agreedAt'])
-        && request.resource.data.legal.termsVersion == '2026-10-07'
-        && request.resource.data.legal.privacyVersion == '2026-10-07'
+        && request.resource.data.legal.termsVersion in ['2026-10-07','2026-10-07-r2']
+        && request.resource.data.legal.privacyVersion in ['2026-10-07','2026-10-07-r2']
       );
       allow delete: if false;
     }
