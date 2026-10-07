@@ -135,7 +135,8 @@ function funnelCounts(report){
   const counts={VISITORS:0,SIGNUP_VIEW:0,SIGNUPS:0,TOOL_START:0};
   if(stepIndex<0||usersIndex<0) return counts;
   for(const row of table.rows||[]){
-    const step=row.dimensionValues?.[stepIndex]?.value;
+    const rawStep=String(row.dimensionValues?.[stepIndex]?.value||'');
+    const step=rawStep.replace(/^\d+\.\s*/,'');
     if(step in counts) counts[step]=n(row.metricValues?.[usersIndex]?.value);
   }
   return counts;
