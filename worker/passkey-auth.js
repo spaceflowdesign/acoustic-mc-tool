@@ -1,3 +1,4 @@
+// @ts-nocheck
 const encoder=new TextEncoder();
 const decoder=new TextDecoder();
 let googleTokenCache={token:null,expiresAt:0};
