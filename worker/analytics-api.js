@@ -94,6 +94,17 @@ async function runReport(env,body){
   if(!res.ok) throw new Error('GA4 Data API failed: '+await res.text());
   return res.json();
 }
+async function runFunnelReport(env,body){
+  const token=await getGoogleAccessToken(env);
+  const url=`https://analyticsdata.googleapis.com/v1alpha/properties/${env.GA4_PROPERTY_ID}:runFunnelReport`;
+  const res=await fetch(url,{
+    method:'POST',
+    headers:{authorization:'Bearer '+token,'content-type':'application/json'},
+    body:JSON.stringify(body)
+  });
+  if(!res.ok) throw new Error('GA4 Funnel Data API failed: '+await res.text());
+  return res.json();
+}
 function dateStart(range){
   return ({'1d':'today','7d':'7daysAgo','30d':'30daysAgo','90d':'90daysAgo'})[range]||'30daysAgo';
 }
@@ -101,8 +112,34 @@ const toolPath='/acoustic-mc-tool/';
 function pageFilter(){
   return {filter:{fieldName:'pagePath',stringFilter:{matchType:'EXACT',value:toolPath,caseSensitive:true}}};
 }
-function eventFilter(){
-  return {filter:{fieldName:'eventName',inListFilter:{values:['signup_view','sign_up','tool_start'],caseSensitive:true}}};
+function funnelStepEvent(name,eventName){
+  return {name,filterExpression:{funnelEventFilter:{eventName}}};
+}
+function visitStep(){
+  return {
+    name:'VISITORS',
+    filterExpression:{
+      andGroup:{expressions:[
+        {funnelEventFilter:{eventName:'page_view'}},
+        {funnelFieldFilter:{fieldName:'pagePath',stringFilter:{matchType:'EXACT',value:toolPath,caseSensitive:true}}}
+      ]}
+    }
+  };
+}
+function funnelCounts(report){
+  const table=report?.funnelTable||{};
+  const dimensions=(table.dimensionHeaders||[]).map(x=>x.name);
+  const metrics=(table.metricHeaders||[]).map(x=>x.name);
+  const stepIndex=dimensions.indexOf('funnelStepName');
+  const usersIndex=metrics.indexOf('activeUsers');
+  const counts={VISITORS:0,SIGNUP_VIEW:0,SIGNUPS:0,TOOL_START:0};
+  if(stepIndex<0||usersIndex<0) return counts;
+  for(const row of table.rows||[]){
+    const rawStep=String(row.dimensionValues?.[stepIndex]?.value||'');
+    const step=rawStep.replace(/^\d+\.\s*/,'');
+    if(step in counts) counts[step]=n(row.metricValues?.[usersIndex]?.value);
+  }
+  return counts;
 }
 function n(v){const x=Number(v||0);return Number.isFinite(x)?x:0}
 function pct(a,b){return b>0?Math.round((a/b)*1000)/10:0}
@@ -119,18 +156,24 @@ async function buildReport(env,range){
   if(cached&&cached.expiresAt>Date.now()) return cached.data;
 
   const dates=[{startDate:dateStart(range),endDate:'today'}];
-  const [visitorsReport,eventsReport,sourcesReport]=await Promise.all([
-    runReport(env,{dateRanges:dates,metrics:[{name:'totalUsers'}],dimensionFilter:pageFilter()}),
-    runReport(env,{dateRanges:dates,dimensions:[{name:'eventName'}],metrics:[{name:'totalUsers'}],dimensionFilter:eventFilter()}),
+  const [funnelReport,sourcesReport]=await Promise.all([
+    runFunnelReport(env,{
+      dateRanges:dates,
+      funnel:{
+        isOpenFunnel:false,
+        steps:[
+          visitStep(),
+          funnelStepEvent('SIGNUP_VIEW','signup_view'),
+          funnelStepEvent('SIGNUPS','sign_up'),
+          funnelStepEvent('TOOL_START','tool_start')
+        ]
+      }
+    }),
     runReport(env,{dateRanges:dates,dimensions:[{name:'sessionSource'}],metrics:[{name:'sessions'}],dimensionFilter:pageFilter(),limit:'100'})
   ]);
 
-  const visitors=n(visitorsReport.rows?.[0]?.metricValues?.[0]?.value);
-  const uniqueUsers={signup_view:0,sign_up:0,tool_start:0};
-  for(const row of eventsReport.rows||[]){
-    const name=row.dimensionValues?.[0]?.value;
-    if(name in uniqueUsers) uniqueUsers[name]+=n(row.metricValues?.[0]?.value);
-  }
+  const funnel=funnelCounts(funnelReport);
+  const visitors=funnel.VISITORS;
   const source={x:0,note:0,direct:0,other:0};
   for(const row of sourcesReport.rows||[]){
     const key=bucketSource(row.dimensionValues?.[0]?.value);
@@ -142,11 +185,11 @@ async function buildReport(env,range){
     generatedAt:new Date().toISOString(),
     totals:{
       visitors,
-      signupView:uniqueUsers.signup_view,
-      signups:uniqueUsers.sign_up,
-      toolStart:uniqueUsers.tool_start,
-      registerRate:pct(uniqueUsers.sign_up,visitors),
-      toolStartRate:pct(uniqueUsers.tool_start,uniqueUsers.sign_up)
+      signupView:funnel.SIGNUP_VIEW,
+      signups:funnel.SIGNUPS,
+      toolStart:funnel.TOOL_START,
+      registerRate:pct(funnel.SIGNUPS,visitors),
+      toolStartRate:pct(funnel.TOOL_START,funnel.SIGNUPS)
     },
     source
   };
