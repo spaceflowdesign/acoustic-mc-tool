@@ -18,5 +18,6 @@ window.AMC_ACCESS_CONFIG={
     }}
   },
   adminEmail:"spaceflowdesign.jp@gmail.com",
+  passkeyApiBase:"https://art-passkey-auth.4td64nzyfj.workers.dev",
   legal:{termsVersion:"2026-10-07-r2",privacyVersion:"2026-10-07-r2"}
 };
