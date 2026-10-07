@@ -6,7 +6,13 @@ workspaceButton.onclick=async()=>{
   workspaceButton.disabled=true;
   const confirmBefore=window.confirm,memoBefore=$('memo').value;
   try{
-    pause(true);changePage('compare');$('freqMode').value='standard';window.confirm=()=>true;const original=wav();
+    pause(true);changePage('compare');$('freqMode').value='standard';window.confirm=()=>true;
+    $('appMenuButton').click();
+    assertTest($('appMenuDialog').open,'top menu opens');
+    assertTest($('appMenuDialog').querySelector('a[href="terms.html"]')&&$('appMenuDialog').querySelector('a[href="privacy.html"]'),'legal links are grouped in top menu');
+    assertTest($('appLogoutButton')&&$('appLogoutButton').textContent==='ログアウト','logout action is available in top menu');
+    $('appMenuDialog').close();await delay(30);
+    const original=wav();
     for(const k of ['A','B']){
       const data=new DataTransfer();data.items.add(new File([original],k+'.wav',{type:'audio/wav'}));$('file'+k).files=data.files;
       await $('file'+k).onchange({target:$('file'+k)});
