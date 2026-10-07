@@ -11,8 +11,10 @@ workspaceButton.onclick=async()=>{
     assertTest($('appMenuDialog').open,'top menu opens');
     assertTest($('appMenuDialog').querySelector('a[href="terms.html"]')&&$('appMenuDialog').querySelector('a[href="privacy.html"]'),'legal links are grouped in top menu');
     assertTest($('appLogoutButton')&&$('appLogoutButton').textContent==='ログアウト','logout action is available in top menu');
-    assertTest($('appWithdrawButton')&&$('appWithdrawButton').textContent==='退会','withdraw action is available in top menu');
-    $('appWithdrawButton').click();assertTest($('withdrawDialog').open&&$('withdrawPassword').type==='password','withdraw dialog requires password confirmation');$('withdrawDialog').close();await delay(30);
+    assertTest($('appStopToolButton')&&$('appStopToolButton').textContent==='Tool利用停止','Tool stop action is available in top menu');
+    assertTest($('appDeleteAccountButton')&&$('appDeleteAccountButton').textContent==='アカウント削除','account deletion is separate from Tool stop');
+    $('appStopToolButton').click();assertTest($('stopToolDialog').open&&$('stopToolConfirm').type==='checkbox','Tool stop dialog requires explicit confirmation');$('stopToolDialog').close();await delay(30);
+    $('appMenuButton').click();$('appDeleteAccountButton').click();assertTest($('accountDeleteDialog').open&&$('accountDeletePassword').type==='password','account deletion requires password confirmation');$('accountDeleteDialog').close();await delay(30);
     const original=wav();
     for(const k of ['A','B']){
       const data=new DataTransfer();data.items.add(new File([original],k+'.wav',{type:'audio/wav'}));$('file'+k).files=data.files;
