@@ -60,7 +60,7 @@ async function getGoogleAccessToken(env){
   const header=toB64url(encoder.encode(JSON.stringify({alg:'RS256',typ:'JWT'})));
   const payload=toB64url(encoder.encode(JSON.stringify({
     iss:env.GA_CLIENT_EMAIL,
-    scope:'https://www.googleapis.com/auth/analytics.readonly',
+    scope:'https://www.googleapis.com/auth/analytics.readonly https://www.googleapis.com/auth/spreadsheets',
     aud:'https://oauth2.googleapis.com/token',
     iat:now,
     exp:now+3600
@@ -202,6 +202,69 @@ async function buildReport(env,range){
   return data;
 }
 
+/*
+ * Private daily funnel export for SPACE FLOW DESIGN reporting.
+ * Requires ART_DAILY_SHEET_ID and spreadsheet Editor access for GA_CLIENT_EMAIL.
+ * Never exports user IDs, emails, audio, or session contents.
+ */
+function todayJst(){
+  return new Intl.DateTimeFormat('en-CA',{
+    timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit'
+  }).format(new Date());
+}
+async function sheetsRequest(url,token,options={}){
+  const response=await fetch(url,{
+    ...options,
+    headers:{
+      authorization:'Bearer '+token,
+      ...(options.body?{'content-type':'application/json'}:{})
+    }
+  });
+  if(!response.ok){
+    // Do not log Google response bodies or OAuth tokens.
+    throw new Error('Google Sheets request failed: HTTP '+response.status);
+  }
+  return response.json();
+}
+async function saveFunnelRow(env,report){
+  const sheetId=String(env.ART_DAILY_SHEET_ID||'').trim();
+  if(!/^[A-Za-z0-9_-]+$/.test(sheetId)){
+    throw new Error('ART_DAILY_SHEET_ID is missing or invalid');
+  }
+  const token=await getGoogleAccessToken(env);
+  const base='https://sheets.googleapis.com/v4/spreadsheets/'+encodeURIComponent(sheetId)+'/values/';
+  const date=todayJst();
+  const tab='Funnel';
+  const existing=await sheetsRequest(base+encodeURIComponent(tab+'!A2:B'),token);
+  const rows=existing.values||[];
+  const target=rows.findIndex(r=>r[0]===date&&r[1]===report.range);
+  const t=report.totals,s=report.source;
+  const row=[date,report.range,report.generatedAt,
+    t.visitors,t.signupView,t.signups,t.toolStart,
+    t.registerRate,t.toolStartRate,s.x,s.note,s.direct,s.other,
+    report.range==='1d'?'暫定・当日': '直近7日（当日含む）'
+  ];
+  if(target>=0){
+    const at=target+2;
+    await sheetsRequest(
+      base+encodeURIComponent(tab+'!A'+at+':N'+at)+'?valueInputOption=RAW',
+      token,{method:'PUT',body:JSON.stringify({range:tab+'!A'+at+':N'+at,majorDimension:'ROWS',values:[row]})}
+    );
+  }else{
+    await sheetsRequest(
+      base+encodeURIComponent(tab+'!A:N')+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',
+      token,{method:'POST',body:JSON.stringify({majorDimension:'ROWS',values:[row]})}
+    );
+  }
+}
+async function saveDailyFunnel(env){
+  for(const range of ['1d','7d']){
+    // Use the existing secure closed-funnel GA4 computation; do not recalculate metrics.
+    const report=await buildReport(env,range);
+    await saveFunnelRow(env,report);
+  }
+}
+
 export default {
   async fetch(request,env){
     const allowedOrigin=env.ALLOWED_ORIGIN||'https://spaceflowdesign.github.io';
@@ -232,5 +295,8 @@ export default {
       const status=/Admin claim|Firebase token|Authentication/.test(message)?403:500;
       return json({ok:false,error:message},status,origin===allowedOrigin?allowedOrigin:'');
     }
+  },
+  scheduled(_event,env,ctx){
+    ctx.waitUntil(saveDailyFunnel(env));
   }
 };
