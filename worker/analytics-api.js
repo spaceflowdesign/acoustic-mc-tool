@@ -149,11 +149,14 @@ function funnelCounts(report){
 }
 function n(v){const x=Number(v||0);return Number.isFinite(x)?x:0}
 function pct(a,b){return b>0?Math.round((a/b)*1000)/10:0}
-function bucketSource(value){
-  const s=String(value||'').toLowerCase();
+function bucketSource(value,medium=''){
+  const s=String(value||'').trim().toLowerCase();
+  const m=String(medium||'').trim().toLowerCase();
   if(!s||s==='(direct)'||s==='direct') return 'direct';
-  if(s==='x'||s.includes('twitter')||s.includes('t.co')||s.includes('x.com')) return 'x';
-  if(s.includes('note')) return 'note';
+  if(s==='x'||s.includes('twitter')||s==='t.co'||s==='x.com'||s.endsWith('.x.com')) return 'x';
+  if(s==='note'||s==='note.com'||s.endsWith('.note.com')) return 'note';
+  if(s==='youtube'||s==='youtube.com'||s.endsWith('.youtube.com')||s==='youtu.be'||s.endsWith('.youtu.be')) return 'youtube';
+  if(m==='organic'||m==='organic_search') return 'search';
   return 'other';
 }
 async function buildReport(env,range,period=null){
@@ -175,15 +178,15 @@ async function buildReport(env,range,period=null){
         ]
       }
     }),
-    runReport(env,{dateRanges:dates,dimensions:[{name:'sessionSource'}],metrics:[{name:'sessions'}],dimensionFilter:pageFilter(),limit:period?'10000':'100'})
+    runReport(env,{dateRanges:dates,dimensions:[{name:'sessionSource'},{name:'sessionMedium'}],metrics:[{name:'sessions'}],dimensionFilter:pageFilter(),limit:period?'10000':'100'})
   ]);
 
   if(period) validateDailyReports(funnelReport,sourcesReport);
   const funnel=funnelCounts(funnelReport);
   const visitors=funnel.VISITORS;
-  const source={x:0,note:0,direct:0,other:0};
+  const source={x:0,note:0,youtube:0,search:0,direct:0,other:0};
   for(const row of sourcesReport.rows||[]){
-    const key=bucketSource(row.dimensionValues?.[0]?.value);
+    const key=bucketSource(row.dimensionValues?.[0]?.value,row.dimensionValues?.[1]?.value);
     source[key]+=n(row.metricValues?.[0]?.value);
   }
   const data={
@@ -209,7 +212,8 @@ async function buildReport(env,range,period=null){
  * Requires ART_DAILY_SHEET_ID and spreadsheet Editor access for GA_CLIENT_EMAIL.
  * Never exports user IDs, emails, audio, or session contents.
  */
-const dailyHeader=['DateJST','Window','GeneratedAtUTC','VISITORS','SIGNUP_VIEW','SIGNUPS','TOOL_START','RegisterRatePct','ToolStartRatePct','SourceX','SourceNote','SourceDirect','SourceOther','Status'];
+const legacyDailyHeader=['DateJST','Window','GeneratedAtUTC','VISITORS','SIGNUP_VIEW','SIGNUPS','TOOL_START','RegisterRatePct','ToolStartRatePct','SourceX','SourceNote','SourceDirect','SourceOther','Status'];
+const dailyHeader=[...legacyDailyHeader,'SourceYouTube','SourceSearch'];
 function todayJst(timestamp=Date.now()){
   return new Date(timestamp+9*60*60*1000).toISOString().slice(0,10);
 }
@@ -234,12 +238,12 @@ function validateDailyReports(funnel,sources){
   if(seen.size&&seen.size!==4) throw new Error('Incomplete GA4 funnel steps');
   const counts=Object.values(funnelCounts(funnel));
   if(counts.some((n,i)=>i>0&&n>counts[i-1])) throw new Error('Invalid closed-funnel ordering');
-  if(sources?.dimensionHeaders?.[0]?.name!=='sessionSource'||sources?.metricHeaders?.[0]?.name!=='sessions') throw new Error('Invalid GA4 source response');
+  if(sources?.dimensionHeaders?.[0]?.name!=='sessionSource'||sources?.dimensionHeaders?.[1]?.name!=='sessionMedium'||sources?.metricHeaders?.[0]?.name!=='sessions') throw new Error('Invalid GA4 source response');
   if(sources.metadata?.timeZone!=='Asia/Tokyo') throw new Error('GA4 property timezone must be Asia/Tokyo');
   if(sources.rows!==undefined&&!Array.isArray(sources.rows)) throw new Error('Invalid GA4 source rows');
   if(Number(sources.rowCount||0)>(sources.rows||[]).length) throw new Error('Truncated GA4 source response');
   for(const row of sources.rows||[]){
-    if(typeof row.dimensionValues?.[0]?.value!=='string'||!validCount(row.metricValues?.[0]?.value)) throw new Error('Invalid GA4 source row');
+    if(typeof row.dimensionValues?.[0]?.value!=='string'||typeof row.dimensionValues?.[1]?.value!=='string'||!validCount(row.metricValues?.[0]?.value)) throw new Error('Invalid GA4 source row');
   }
   for(const meta of [table.metadata,sources.metadata]){
     if(meta?.subjectToThresholding||meta?.dataLossFromOtherRow||meta?.samplingMetadatas?.length||meta?.emptyReason) throw new Error('GA4 report is limited or sampled');
@@ -258,9 +262,11 @@ async function saveDailyFunnel(env,timestamp=Date.now()){
   if(!/^[A-Za-z0-9_-]+$/.test(sheetId)) throw new Error('ART_DAILY_SHEET_ID is missing or invalid');
   const base='https://sheets.googleapis.com/v4/spreadsheets/'+encodeURIComponent(sheetId)+'/values';
   let token=await getGoogleAccessToken(env,true);
-  const existing=await sheetsRequest(base+'/'+encodeURIComponent('Funnel!A:N'),token);
+  const existing=await sheetsRequest(base+'/'+encodeURIComponent('Funnel!A:P'),token);
   const rows=existing.values;
-  if(!Array.isArray(rows)||JSON.stringify(rows[0])!==JSON.stringify(dailyHeader)) throw new Error('Funnel header is missing or incompatible');
+  if(!Array.isArray(rows)) throw new Error('Funnel header is missing or incompatible');
+  const legacy=JSON.stringify(rows[0])===JSON.stringify(legacyDailyHeader);
+  if(!legacy&&JSON.stringify(rows[0])!==JSON.stringify(dailyHeader)) throw new Error('Funnel header is missing or incompatible');
   const indexes=new Map();
   rows.slice(1).forEach((row,i)=>{
     if(!row.length) return;
@@ -268,7 +274,7 @@ async function saveDailyFunnel(env,timestamp=Date.now()){
     if(indexes.has(key)) throw new Error('Duplicate Funnel date/window rows; resolve before export');
     indexes.set(key,i+2);
   });
-  const date=todayJst(timestamp),data=[];
+  const date=todayJst(timestamp),data=legacy?[{range:'Funnel!A1:P1',majorDimension:'ROWS',values:[dailyHeader]}]:[];
   let nextRow=rows.length+1;
   // Refresh today and the preceding 7 days. One-day and seven-day users are
   // computed independently by GA4, never added or divided across daily rows.
@@ -283,8 +289,8 @@ async function saveDailyFunnel(env,timestamp=Date.now()){
       const at=indexes.get(key)||nextRow++;
       const status=age===0?'暫定・当日途中（集計日時参照）':age<3?'暫定・後日再集計':'再集計済・確定保証なし';
       const row=[endDate,range,report.generatedAt,t.visitors,t.signupView,t.signups,t.toolStart,
-        t.visitors>0?t.registerRate:'',t.signups>0?t.toolStartRate:'',s.x,s.note,s.direct,s.other,status];
-      data.push({range:'Funnel!A'+at+':N'+at,majorDimension:'ROWS',values:[row]});
+        t.visitors>0?t.registerRate:'',t.signups>0?t.toolStartRate:'',s.x,s.note,s.direct,s.other,status,s.youtube,s.search];
+      data.push({range:'Funnel!A'+at+':P'+at,majorDimension:'ROWS',values:[row]});
     }
   }
   // Do not overwrite successful rows if any GA4 read fails. One batch write

@@ -97,3 +97,55 @@ Note: GA4 funnel reporting is provided by the Data API v1alpha `runFunnelReport`
 ## Funnel entry filter compatibility fix
 
 GA4 Data API v1alpha does not currently allow `pagePath` as a funnel-step field filter. The VISITORS step therefore matches the `page_view` event and filters its `page_location` event parameter for `/acoustic-mc-tool/`. This preserves Tool-only entry filtering while using a filter type supported inside funnel event filters.
+
+
+## Six-source attribution and owner exclusion (2026-10-13)
+
+Approved dashboard categories: X / note / YouTube / SEARCH / direct / other.
+The Worker reads GA4 `sessionSource` and `sessionMedium` to distinguish
+organic search (`organic`) from paid campaigns or ordinary referrals.
+Source metrics remain **sessions**, not unique visitors.
+
+`admin.html` marks a browser as owner-operated only after a Firebase
+`admin: true` claim is confirmed. On the Tool, GA4 is initialized only
+after the initial Firebase auth state and admin claim have been checked.
+An authenticated admin or a marked browser has Analytics disabled, including
+the automatic initial page view. This uses browser-local storage for the
+marker, not an IP address. A new browser with no owner marker and no
+signed-in admin identity cannot be distinguished from a public visitor
+until it authenticates; previously recorded GA4 visits cannot safely be
+removed retroactively.
+
+The Worker response now includes `source.youtube` and `source.search`
+alongside the four existing keys. Before the updated Worker is deployed,
+the dashboard labels missing fields with a dash and shows
+`6分類API未反映` rather than falsely displaying zero.
+
+The daily Sheets export uses the existing 14-column `Funnel!A:N` schema
+plus two appended columns `O: SourceYouTube` and `P: SourceSearch`.
+The Worker upgrades the old header and writes the new daily rows in
+**one validated batch** after successfully reading the GA4 reports.
+Older historical rows are retained; previous `SourceOther` values
+cannot be assumed to exclude YouTube/search until the day is re-exported.
+
+### Deployment checklist
+
+1. Merge the application / dashboard changes to `main` (GitHub Pages).
+2. Deploy `worker/analytics-api.js` to Cloudflare Worker `art-admin-analytics-api`.
+   The GitHub merge by itself **does not deploy the Cloudflare Worker**.
+   Preserve its existing secrets, schedule (23:30 JST), access rules and
+   Worker URL. Avoid overlapping an automatic daily export with a manual one.
+3. Verify authenticated `/api/funnel?range=30d` returns all six keys,
+   the ADMIN panel shows no `6分類API未反映` warning, and the next
+   daily export expands the `Funnel` header to 16 columns.
+4. Add explicit `utm_source=youtube` links to YouTube descriptions and
+   channel links where possible. In-app visits without a referrer/UTM
+   may otherwise appear as `direct`.
+5. Open the admin console on each personal browser to establish its owner
+   exclusion marker. Browsers already signed into the admin account in
+   the Tool can also self-identify via the Firebase claim.
+
+Local checks: `node tests/analytics-daily.mjs` and
+`node tests/analytics-owner.mjs`.
+Production Worker deployment and end-to-end live GA4 verification
+must be recorded separately.
