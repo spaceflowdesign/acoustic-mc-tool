@@ -1,4 +1,4 @@
-let oauthCache={token:null,expiresAt:0};
+let oauthCache={token:null,expiresAt:0,scope:""};
 let reportCache=new Map();
 
 const encoder=new TextEncoder();
@@ -54,13 +54,14 @@ function pemToDer(pem){
   for(let i=0;i<raw.length;i++) out[i]=raw.charCodeAt(i);
   return out.buffer;
 }
-async function getGoogleAccessToken(env){
+async function getGoogleAccessToken(env,withSheets=false){
+  const scope='https://www.googleapis.com/auth/analytics.readonly'+(withSheets?' https://www.googleapis.com/auth/spreadsheets':'');
   const now=Math.floor(Date.now()/1000);
-  if(oauthCache.token&&oauthCache.expiresAt>now+120) return oauthCache.token;
+  if(oauthCache.token&&oauthCache.scope===scope&&oauthCache.expiresAt>now+120) return oauthCache.token;
   const header=toB64url(encoder.encode(JSON.stringify({alg:'RS256',typ:'JWT'})));
   const payload=toB64url(encoder.encode(JSON.stringify({
     iss:env.GA_CLIENT_EMAIL,
-    scope:'https://www.googleapis.com/auth/analytics.readonly',
+    scope,
     aud:'https://oauth2.googleapis.com/token',
     iat:now,
     exp:now+3600
@@ -80,7 +81,7 @@ async function getGoogleAccessToken(env){
   });
   if(!res.ok) throw new Error('Google OAuth token request failed: '+await res.text());
   const data=await res.json();
-  oauthCache={token:data.access_token,expiresAt:now+(data.expires_in||3600)};
+  oauthCache={token:data.access_token,expiresAt:now+(data.expires_in||3600),scope};
   return data.access_token;
 }
 async function runReport(env,body){
@@ -155,12 +156,12 @@ function bucketSource(value){
   if(s.includes('note')) return 'note';
   return 'other';
 }
-async function buildReport(env,range){
+async function buildReport(env,range,period=null){
   const cacheKey=range;
   const cached=reportCache.get(cacheKey);
-  if(cached&&cached.expiresAt>Date.now()) return cached.data;
+  if(!period&&cached&&cached.expiresAt>Date.now()) return cached.data;
 
-  const dates=[{startDate:dateStart(range),endDate:'today'}];
+  const dates=[period||{startDate:dateStart(range),endDate:'today'}];
   const [funnelReport,sourcesReport]=await Promise.all([
     runFunnelReport(env,{
       dateRanges:dates,
@@ -174,9 +175,10 @@ async function buildReport(env,range){
         ]
       }
     }),
-    runReport(env,{dateRanges:dates,dimensions:[{name:'sessionSource'}],metrics:[{name:'sessions'}],dimensionFilter:pageFilter(),limit:'100'})
+    runReport(env,{dateRanges:dates,dimensions:[{name:'sessionSource'}],metrics:[{name:'sessions'}],dimensionFilter:pageFilter(),limit:period?'10000':'100'})
   ]);
 
+  if(period) validateDailyReports(funnelReport,sourcesReport);
   const funnel=funnelCounts(funnelReport);
   const visitors=funnel.VISITORS;
   const source={x:0,note:0,direct:0,other:0};
@@ -198,8 +200,97 @@ async function buildReport(env,range){
     },
     source
   };
-  reportCache.set(cacheKey,{data,expiresAt:Date.now()+5*60*1000});
+  if(!period) reportCache.set(cacheKey,{data,expiresAt:Date.now()+5*60*1000});
   return data;
+}
+
+/*
+ * Private daily funnel export for SPACE FLOW DESIGN reporting.
+ * Requires ART_DAILY_SHEET_ID and spreadsheet Editor access for GA_CLIENT_EMAIL.
+ * Never exports user IDs, emails, audio, or session contents.
+ */
+const dailyHeader=['DateJST','Window','GeneratedAtUTC','VISITORS','SIGNUP_VIEW','SIGNUPS','TOOL_START','RegisterRatePct','ToolStartRatePct','SourceX','SourceNote','SourceDirect','SourceOther','Status'];
+function todayJst(timestamp=Date.now()){
+  return new Date(timestamp+9*60*60*1000).toISOString().slice(0,10);
+}
+function shiftDate(date,days){
+  return new Date(Date.parse(date+'T00:00:00Z')+days*86400000).toISOString().slice(0,10);
+}
+function validateDailyReports(funnel,sources){
+  const table=funnel?.funnelTable;
+  const di=table?.dimensionHeaders?.findIndex(x=>x.name==='funnelStepName');
+  const mi=table?.metricHeaders?.findIndex(x=>x.name==='activeUsers');
+  if(!(di>=0&&mi>=0)) throw new Error('Invalid GA4 funnel response');
+  const steps=new Set(['VISITORS','SIGNUP_VIEW','SIGNUPS','TOOL_START']);
+  const seen=new Set();
+  const validCount=value=>typeof value==='string'&&/^\d+$/.test(value)&&Number.isSafeInteger(Number(value));
+  if(table.rows!==undefined&&!Array.isArray(table.rows)) throw new Error('Invalid GA4 funnel rows');
+  for(const row of table.rows||[]){
+    const step=String(row.dimensionValues?.[di]?.value||'').replace(/^\d+\.\s*/,'');
+    if(!steps.has(step)||seen.has(step)||!validCount(row.metricValues?.[mi]?.value)) throw new Error('Invalid GA4 funnel row');
+    seen.add(step);
+  }
+  // A schema-valid empty report is zero *reported* users, never evidence of finality.
+  if(seen.size&&seen.size!==4) throw new Error('Incomplete GA4 funnel steps');
+  const counts=Object.values(funnelCounts(funnel));
+  if(counts.some((n,i)=>i>0&&n>counts[i-1])) throw new Error('Invalid closed-funnel ordering');
+  if(sources?.dimensionHeaders?.[0]?.name!=='sessionSource'||sources?.metricHeaders?.[0]?.name!=='sessions') throw new Error('Invalid GA4 source response');
+  if(sources.metadata?.timeZone!=='Asia/Tokyo') throw new Error('GA4 property timezone must be Asia/Tokyo');
+  if(sources.rows!==undefined&&!Array.isArray(sources.rows)) throw new Error('Invalid GA4 source rows');
+  if(Number(sources.rowCount||0)>(sources.rows||[]).length) throw new Error('Truncated GA4 source response');
+  for(const row of sources.rows||[]){
+    if(typeof row.dimensionValues?.[0]?.value!=='string'||!validCount(row.metricValues?.[0]?.value)) throw new Error('Invalid GA4 source row');
+  }
+  for(const meta of [table.metadata,sources.metadata]){
+    if(meta?.subjectToThresholding||meta?.dataLossFromOtherRow||meta?.samplingMetadatas?.length||meta?.emptyReason) throw new Error('GA4 report is limited or sampled');
+  }
+}
+async function sheetsRequest(url,token,options={}){
+  const response=await fetch(url,{
+    ...options,
+    headers:{authorization:'Bearer '+token,...(options.body?{'content-type':'application/json'}:{})}
+  });
+  if(!response.ok) throw new Error('Google Sheets request failed: HTTP '+response.status);
+  return response.json();
+}
+async function saveDailyFunnel(env,timestamp=Date.now()){
+  const sheetId=String(env.ART_DAILY_SHEET_ID||'').trim();
+  if(!/^[A-Za-z0-9_-]+$/.test(sheetId)) throw new Error('ART_DAILY_SHEET_ID is missing or invalid');
+  const base='https://sheets.googleapis.com/v4/spreadsheets/'+encodeURIComponent(sheetId)+'/values';
+  let token=await getGoogleAccessToken(env,true);
+  const existing=await sheetsRequest(base+'/'+encodeURIComponent('Funnel!A:N'),token);
+  const rows=existing.values;
+  if(!Array.isArray(rows)||JSON.stringify(rows[0])!==JSON.stringify(dailyHeader)) throw new Error('Funnel header is missing or incompatible');
+  const indexes=new Map();
+  rows.slice(1).forEach((row,i)=>{
+    if(!row.length) return;
+    const key=row[0]+'|'+row[1];
+    if(indexes.has(key)) throw new Error('Duplicate Funnel date/window rows; resolve before export');
+    indexes.set(key,i+2);
+  });
+  const date=todayJst(timestamp),data=[];
+  let nextRow=rows.length+1;
+  // Refresh today and the preceding 7 days. One-day and seven-day users are
+  // computed independently by GA4, never added or divided across daily rows.
+  // Single configured cron only; do not overlap manual runs with the cron.
+  for(let age=0;age<=7;age++){
+    const endDate=shiftDate(date,-age);
+    for(const range of ['1d','7d']){
+      const startDate=shiftDate(endDate,range==='7d'?-6:0);
+      const report=await buildReport(env,range,{startDate,endDate});
+      const t=report.totals,s=report.source;
+      const key=endDate+'|'+range;
+      const at=indexes.get(key)||nextRow++;
+      const status=age===0?'暫定・当日途中（集計日時参照）':age<3?'暫定・後日再集計':'再集計済・確定保証なし';
+      const row=[endDate,range,report.generatedAt,t.visitors,t.signupView,t.signups,t.toolStart,
+        t.visitors>0?t.registerRate:'',t.signups>0?t.toolStartRate:'',s.x,s.note,s.direct,s.other,status];
+      data.push({range:'Funnel!A'+at+':N'+at,majorDimension:'ROWS',values:[row]});
+    }
+  }
+  // Do not overwrite successful rows if any GA4 read fails. One batch write
+  // also makes sequential retries update the same date/window keys.
+  token=await getGoogleAccessToken(env,true);
+  await sheetsRequest(base+':batchUpdate',token,{method:'POST',body:JSON.stringify({valueInputOption:'RAW',data})});
 }
 
 export default {
@@ -232,5 +323,8 @@ export default {
       const status=/Admin claim|Firebase token|Authentication/.test(message)?403:500;
       return json({ok:false,error:message},status,origin===allowedOrigin?allowedOrigin:'');
     }
+  },
+  scheduled(event,env,ctx){
+    ctx.waitUntil(saveDailyFunnel(env,event.scheduledTime));
   }
 };
