@@ -4,7 +4,7 @@ import vm from 'node:vm';
 const source=readFileSync(new URL('../worker/analytics-api.js',import.meta.url),'utf8');
 const header=['DateJST','Window','GeneratedAtUTC','VISITORS','SIGNUP_VIEW','SIGNUPS','TOOL_START','RegisterRatePct','ToolStartRatePct','SourceX','SourceNote','SourceDirect','SourceOther','Status','SourceYouTube','SourceSearch'];
 function fixture(){
-  const state={rows:[header],calls:[],writes:0,fail:false,malformed:false,zone:'Asia/Tokyo',empty:false,gaReads:0,failAt:0,truncated:false,limited:false,sheetReadStatus:200,sheetWriteStatus:200};
+  const state={rows:[header],calls:[],writes:0,fail:false,malformed:false,zone:'Asia/Tokyo',empty:false,gaReads:0,failAt:0,truncated:false,limited:false,sheetReadStatus:200,sheetWriteStatus:200,funnelRows:null};
   const context=vm.createContext({TextEncoder,TextDecoder,URL,URLSearchParams,Request,Response,Date,Map,Set,Intl,atob,btoa,crypto:{subtle:{importKey:async()=>({}),sign:async()=>new Uint8Array([1])}},fetch:async(url,options={})=>{
     const body=options.body&&JSON.parse(options.body instanceof URLSearchParams?'{}':options.body);
     state.calls.push({url,body});
@@ -21,12 +21,13 @@ function fixture(){
     state.gaReads++;
     if(state.fail||state.gaReads===state.failAt) return Response.json({error:'simulated'}, {status:503});
     if(state.malformed) return Response.json({});
-    if(url.includes('runFunnelReport')) return Response.json({funnelTable:{dimensionHeaders:[{name:'funnelStepName'}],metricHeaders:[{name:'activeUsers'}],rows:state.empty?[]:['VISITORS','SIGNUP_VIEW','SIGNUPS','TOOL_START'].map((s,i)=>({dimensionValues:[{value:`${i+1}. ${s}`}],metricValues:[{value:String([10,6,3,2][i])}]}))}});
+    if(url.includes('runFunnelReport')) return Response.json({funnelTable:{dimensionHeaders:[{name:'funnelStepName'}],metricHeaders:[{name:'activeUsers'}],rows:state.empty?[]:state.funnelRows||['VISITORS','SIGNUP_VIEW','SIGNUPS','TOOL_START'].map((s,i)=>({dimensionValues:[{value:`${i+1}. ${s}`}],metricValues:[{value:String([10,6,3,2][i])}]}))}});
     return Response.json({dimensionHeaders:[{name:'sessionSource'},{name:'sessionMedium'}],metricHeaders:[{name:'sessions'}],metadata:{timeZone:state.zone,subjectToThresholding:state.limited},rows:state.empty?[]:['t.co','note.com','youtube.com','(direct)','google','referrer.example'].map((s,i)=>({dimensionValues:[{value:s},{value:['referral','referral','referral','(none)','organic','referral'][i]}],metricValues:[{value:String([4,3,5,2,1,6][i])}]})),rowCount:state.truncated?10001:state.empty?0:6});
   }});
   vm.runInContext(source.replace('export default {','globalThis.worker = {')+'\nglobalThis.api={saveDailyFunnel,todayJst,shiftDate};',context);
   return {state,api:context.api,worker:context.worker,env:{GA_CLIENT_EMAIL:'test@example.invalid',GA_PRIVATE_KEY:'AA==',GA4_PROPERTY_ID:'test',ART_DAILY_SHEET_ID:'test'}};
 }
+const funnelRow=(step,count)=>({dimensionValues:[{value:step}],metricValues:[{value:String(count)}]});
 let f=fixture();
 const instant=Date.parse('2026-10-13T14:30:00Z');
 await f.api.saveDailyFunnel(f.env,instant);
@@ -60,6 +61,27 @@ f=fixture(); f.state.empty=true;
 await f.api.saveDailyFunnel(f.env,instant);
 assert.deepEqual(f.state.rows[1].slice(3,9),[0,0,0,0,'','']);
 assert.match(f.state.rows[1][13],/暫定/);
+// A closed GA4 funnel may omit trailing zero-user steps; keep them at zero.
+f=fixture(); f.state.funnelRows=[funnelRow('1. VISITORS',10),funnelRow('2. SIGNUP_VIEW',6)];
+await f.api.saveDailyFunnel(f.env,instant);
+assert.deepEqual(f.state.rows[1].slice(3,9),[10,6,0,0,0,'']);
+assert.equal(f.state.writes,1,'trailing zero-user steps must not block a complete batch');
+f=fixture(); f.state.funnelRows=[funnelRow('1. VISITORS',3)];
+await f.api.saveDailyFunnel(f.env,instant);
+assert.deepEqual(f.state.rows[1].slice(3,9),[3,0,0,0,0,'']);
+// A missing earlier stage with a later stage present is not a safe zero.
+// Reject suspicious API data without changing a previously valid Sheet.
+for(const sparse of [
+  [funnelRow('1. VISITORS',10),funnelRow('3. SIGNUPS',1)],
+  [funnelRow('2. SIGNUP_VIEW',1)]
+]){
+  f=fixture(); f.state.funnelRows=sparse;
+  await assert.rejects(f.api.saveDailyFunnel(f.env,instant),/Incomplete GA4 funnel steps/);
+  assert.equal(f.state.writes,0);
+}
+f=fixture(); f.state.funnelRows=[funnelRow('1. VISITORS',3),funnelRow('1. VISITORS',3)];
+await assert.rejects(f.api.saveDailyFunnel(f.env,instant),/Invalid GA4 funnel row/);
+assert.equal(f.state.writes,0);
 f=fixture(); f.state.rows.push(['2026-10-13','1d'],['2026-10-13','1d']);
 await assert.rejects(f.api.saveDailyFunnel(f.env,instant),/Duplicate/);
 assert.equal(f.state.writes,0);
@@ -97,4 +119,4 @@ let pending;
 f.worker.scheduled({scheduledTime:instant},f.env,{waitUntil:p=>{pending=p;}});
 await pending;
 assert.equal(f.state.rows[1][0],'2026-10-13');
-console.log('PASS: six source buckets, two GA4 session dimensions, daily column migration, explicit JST dates, closed funnel, backfill, sequential upsert, failures without overwrite, validation, 401/403, scheduled timestamp');
+console.log('PASS: sparse trailing funnel steps, incomplete-gap protection, six source buckets, two GA4 session dimensions, daily column migration, explicit JST dates, closed funnel, backfill, sequential upsert, failures without overwrite, validation, 401/403, scheduled timestamp');
