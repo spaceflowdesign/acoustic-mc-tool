@@ -225,17 +225,19 @@ function validateDailyReports(funnel,sources){
   const di=table?.dimensionHeaders?.findIndex(x=>x.name==='funnelStepName');
   const mi=table?.metricHeaders?.findIndex(x=>x.name==='activeUsers');
   if(!(di>=0&&mi>=0)) throw new Error('Invalid GA4 funnel response');
-  const steps=new Set(['VISITORS','SIGNUP_VIEW','SIGNUPS','TOOL_START']);
+  const steps=['VISITORS','SIGNUP_VIEW','SIGNUPS','TOOL_START'];
   const seen=new Set();
   const validCount=value=>typeof value==='string'&&/^\d+$/.test(value)&&Number.isSafeInteger(Number(value));
   if(table.rows!==undefined&&!Array.isArray(table.rows)) throw new Error('Invalid GA4 funnel rows');
   for(const row of table.rows||[]){
     const step=String(row.dimensionValues?.[di]?.value||'').replace(/^\d+\.\s*/,'');
-    if(!steps.has(step)||seen.has(step)||!validCount(row.metricValues?.[mi]?.value)) throw new Error('Invalid GA4 funnel row');
+    if(!steps.includes(step)||seen.has(step)||!validCount(row.metricValues?.[mi]?.value)) throw new Error('Invalid GA4 funnel row');
     seen.add(step);
   }
-  // A schema-valid empty report is zero *reported* users, never evidence of finality.
-  if(seen.size&&seen.size!==4) throw new Error('Incomplete GA4 funnel steps');
+  // GA4 can omit trailing zero-user steps in a closed funnel.
+  // Reject a gap before any later step; never silently replace incomplete data with zero.
+  // An empty schema-valid report remains provisional, not proof of no visits.
+  if(steps.slice(0,seen.size).some(step=>!seen.has(step))) throw new Error('Incomplete GA4 funnel steps');
   const counts=Object.values(funnelCounts(funnel));
   if(counts.some((n,i)=>i>0&&n>counts[i-1])) throw new Error('Invalid closed-funnel ordering');
   if(sources?.dimensionHeaders?.[0]?.name!=='sessionSource'||sources?.dimensionHeaders?.[1]?.name!=='sessionMedium'||sources?.metricHeaders?.[0]?.name!=='sessions') throw new Error('Invalid GA4 source response');
